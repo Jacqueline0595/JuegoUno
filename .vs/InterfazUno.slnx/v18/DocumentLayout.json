@@ -22,8 +22,12 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 0,
+          "SelectedChildIndex": 1,
           "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{1c4feeaa-4718-4aa9-859d-94ce25d182ba}"
+            },
             {
               "$type": "Document",
               "DocumentIndex": 0,
@@ -32,7 +36,7 @@
               "RelativeDocumentMoniker": "..\\InterfazUno\\InterfazUno\\Form2.cs",
               "ToolTip": "C:\\Users\\aslan\\source\\repos\\InterfazUno\\InterfazUno\\Form2.cs",
               "RelativeToolTip": "..\\InterfazUno\\InterfazUno\\Form2.cs",
-              "ViewState": "AgIAAAYAAAAAAAAAAAAAABoAAABOAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABoAAAAlAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2026-09-23T04:48:42.393Z",
               "EditorCaption": ""

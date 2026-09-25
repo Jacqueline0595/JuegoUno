@@ -1,0 +1,11 @@
+C:\Users\aslan\source\repos\InterfazUno\InterfazUno\bin\Debug\InterfazUno.exe.config
+C:\Users\aslan\source\repos\InterfazUno\InterfazUno\bin\Debug\InterfazUno.exe
+C:\Users\aslan\source\repos\InterfazUno\InterfazUno\bin\Debug\InterfazUno.pdb
+C:\Users\aslan\source\repos\InterfazUno\InterfazUno\obj\Debug\InterfazUno.csproj.AssemblyReference.cache
+C:\Users\aslan\source\repos\InterfazUno\InterfazUno\obj\Debug\InterfazUno.Form1.resources
+C:\Users\aslan\source\repos\InterfazUno\InterfazUno\obj\Debug\InterfazUno.Properties.Resources.resources
+C:\Users\aslan\source\repos\InterfazUno\InterfazUno\obj\Debug\InterfazUno.csproj.GenerateResource.cache
+C:\Users\aslan\source\repos\InterfazUno\InterfazUno\obj\Debug\InterfazUno.csproj.CoreCompileInputs.cache
+C:\Users\aslan\source\repos\InterfazUno\InterfazUno\obj\Debug\InterfazUno.exe
+C:\Users\aslan\source\repos\InterfazUno\InterfazUno\obj\Debug\InterfazUno.pdb
+C:\Users\aslan\source\repos\InterfazUno\InterfazUno\obj\Debug\InterfazUno.Form2.resources

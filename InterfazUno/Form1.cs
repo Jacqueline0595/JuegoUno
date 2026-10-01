@@ -14,7 +14,6 @@ namespace InterfazUno
     public partial class Form1 : Form
     {
         Font letra = new Font("Arial", 14, FontStyle.Bold);
-        // Preba de git
         public Form1()
         {
             InitializeComponent();
@@ -45,6 +44,7 @@ namespace InterfazUno
             play.Cursor = Cursors.Hand;
             play.Click += Play_Click;
             this.Controls.Add(play);
+            
         }
 
         private Image CargarImagen(string nombreArchivo, Size tamaño, String ruta_d)

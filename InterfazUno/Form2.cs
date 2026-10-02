@@ -16,8 +16,8 @@ namespace InterfazUno
 
         List<string> usados;
         string[] archivos;
-        string ruta_d = "C:\\Users\\aslan\\source\\repos\\JuegoUno\\InterfazUno\\bin\\Debug\\Cartas\\";
-        string texto_elim = "C:\\Users\\aslan\\source\\repos\\JuegoUno\\InterfazUno\\bin\\Debug\\Cartas\\";
+        string ruta_d = "C:\\Users\\jacqu\\source\\repos\\JuegoUno\\InterfazUno\\bin\\Debug\\Cartas\\";
+        string texto_elim = "C:\\Users\\jacqu\\source\\repos\\JuegoUno\\InterfazUno\\bin\\Debug\\Cartas\\";
         Size tam = new Size(100, 150);
         Size tam_2 = new Size(150, 100);
         Random ran = new Random();
@@ -34,6 +34,7 @@ namespace InterfazUno
         public Form2()
         {
             InitializeComponent();
+            this.Icon = new Icon("Recursos\\logoUno.ico");
         }
 
         private async void Form2_Load(object sender, EventArgs e)

@@ -435,28 +435,55 @@ namespace InterfazUno
         }
         private bool EsJugadaValida(string cartaMano, string cartaMesa)
         {
-            if (cartaMano.StartsWith("cambiar_color") || cartaMano.StartsWith("mas_cuatro"))
+            cartaMano = cartaMano.ToLower();
+            cartaMesa = cartaMesa.ToLower();
+
+            if (cartaMano.Contains("cambiar_color") || cartaMano.Contains("mas_cuatro") || cartaMano.Contains("wild"))
             {
                 return true;
             }
-            string[] partesMano = cartaMano.Split('_');
-            string[] partesMesa = cartaMesa.Split('_');
 
-            if (partesMano.Length < 2 || partesMesa.Length < 2) return false;
+            //  INICIO MODIFICACIÓN: Buscador dinamico de color 
+            string[] colores = { "rojo", "verde", "azul", "amarillo" };
+            string colorMano = "";
+            string colorMesa = "";
 
-            string colorMano = partesMano[0];
-            string colorMesa = partesMesa[0];
+            foreach (string c in colores)
+            {
+                if (cartaMano.Contains(c)) colorMano = c;
+                if (cartaMesa.Contains(c)) colorMesa = c;
+            }
 
-            string tipoMano = partesMano[1];
-            string tipoMesa = partesMesa[1];
-
-            if (colorMano == colorMesa || tipoMano == tipoMesa)
+            if (!string.IsNullOrEmpty(colorMano) && colorMano == colorMesa)
             {
                 return true;
             }
+            //  FIN MODIFICACIÓN 
+
+            //  INICIO MODIFICACIÓN: Buscador dinamico de numero o accion 
+            string manoLimpia = cartaMano.Replace(".png", "");
+            string mesaLimpia = cartaMesa.Replace(".png", "");
+
+            string[] partesMano = manoLimpia.Split('_');
+            string[] partesMesa = mesaLimpia.Split('_');
+
+            foreach (string parteM in partesMano)
+            {
+                if (parteM == "rojo" || parteM == "verde" || parteM == "azul" || parteM == "amarillo") continue;
+
+                foreach (string parteMe in partesMesa)
+                {
+                    if (parteM == parteMe)
+                    {
+                        return true;
+                    }
+                }
+            }
+            // --- FIN MODIFICACIÓN ---
 
             return false;
         }
+
 
         private void Carta_Click(object sender, EventArgs e)
         {
@@ -492,21 +519,38 @@ namespace InterfazUno
                 this.Controls.Remove(cartaClickeada);
                 cartaClickeada.Dispose();
 
-                // --- INICIO MODIFICACIÓN: Logica de la carta Bloqueo ---
+                // --- LOGICA DE CARTAS ESPECIALES ---
+
+                // 1. Si es carta de Bloqueo
                 if (nombreCartaMano.Contains("bloqueo") || nombreCartaMano.Contains("skip"))
                 {
                     MessageBox.Show("¡Carta de Bloqueo! Se salta el turno del siguiente jugador.");
                     SiguienteTurno();
                 }
-                // --- FIN MODIFICACIÓN ---
 
-                SiguienteTurno(); 
+                // 2. Si es carta de +2
+                else if (nombreCartaMano.Contains("mas_dos") || nombreCartaMano.Contains("mas2") || nombreCartaMano.Contains("draw2"))
+                {
+                    int siguienteJugador = (turno + 1) % 4;
+
+                    MessageBox.Show("¡Carta +2! El Jugador " + (siguienteJugador + 1) + " recibe 2 cartas y pierde su turno.");
+
+                    CrearCarta(CartaAlAzar(usados), siguienteJugador);
+                    CrearCarta(CartaAlAzar(usados), siguienteJugador);
+
+                    SiguienteTurno();
+                }
+
+                // --- FIN LOGICA DE CARTAS ESPECIALES ---
+
+                SiguienteTurno();
             }
             else
             {
                 MessageBox.Show("Esta carta no coincide en color ni en número.");
             }
         }
+
 
 
 

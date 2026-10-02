@@ -16,8 +16,9 @@ namespace InterfazUno
 
         List<string> usados;
         string[] archivos;
-        string ruta_d = "C:\\Users\\aslan\\source\\repos\\JuegoUno\\InterfazUno\\bin\\Debug\\Cartas\\";
-        string texto_elim = "C:\\Users\\aslan\\source\\repos\\JuegoUno\\InterfazUno\\bin\\Debug\\Cartas\\";
+        string ruta_d = Path.Combine(Application.StartupPath, "Cartas") + "\\";
+        string texto_elim = Path.Combine(Application.StartupPath, "Cartas") + "\\";
+
         Size tam = new Size(100, 150);
         Size tam_2 = new Size(150, 100);
         Random ran = new Random();
@@ -323,6 +324,7 @@ namespace InterfazUno
             img.Name = jugador.ToString();
             img.MouseEnter += img_MouseEnter;
             img.MouseLeave += img_MouseLeave;
+            img.Click += Carta_Click;
             this.Controls.Add(img);
             manos[jugador].Add(img);
             return img;
@@ -423,9 +425,83 @@ namespace InterfazUno
             }
         }
 
+  
         private void Baraja_Click(object sender, EventArgs e)
         {
-           
+            string nombreCartaNueva = CartaAlAzar(usados);
+            CrearCarta(nombreCartaNueva, turno);
+
+            SiguienteTurno();
         }
+        private bool EsJugadaValida(string cartaMano, string cartaMesa)
+        {
+            if (cartaMano.StartsWith("cambiar_color") || cartaMano.StartsWith("mas_cuatro"))
+            {
+                return true;
+            }
+            string[] partesMano = cartaMano.Split('_');
+            string[] partesMesa = cartaMesa.Split('_');
+
+            if (partesMano.Length < 2 || partesMesa.Length < 2) return false;
+
+            string colorMano = partesMano[0];
+            string colorMesa = partesMesa[0];
+
+            string tipoMano = partesMano[1];
+            string tipoMesa = partesMesa[1];
+
+            if (colorMano == colorMesa || tipoMano == tipoMesa)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private void Carta_Click(object sender, EventArgs e)
+        {
+            Label cartaClickeada = (Label)sender;
+            int jugadorCarta = int.Parse(cartaClickeada.Name);
+
+            if (jugadorCarta != turno)
+            {
+                MessageBox.Show("¡No es tu turno!");
+                return;
+            }
+
+            string nombreCartaMano = cartaClickeada.Tag.ToString();
+            string nombreCartaMesa = cartaMesa.Tag.ToString();
+
+            if (EsJugadaValida(nombreCartaMano, nombreCartaMesa))
+            {
+                Image imagenFinal = cartaClickeada.Image;
+
+                // --- INICIO MODIFICACIÓN: Corrección de rotación de cartas ---
+                if (jugadorCarta == 1)
+                {
+                    imagenFinal.RotateFlip(RotateFlipType.Rotate90FlipNone);
+                }
+                else if (jugadorCarta == 3)
+                {
+                    imagenFinal.RotateFlip(RotateFlipType.Rotate270FlipNone);
+                }
+                // --- FIN MODIFICACIÓN ---
+
+                cartaMesa.Image = imagenFinal;
+                cartaMesa.Tag = nombreCartaMano;
+
+                manos[turno].Remove(cartaClickeada);
+                this.Controls.Remove(cartaClickeada);
+                cartaClickeada.Dispose();
+
+                SiguienteTurno();
+            }
+            else
+            {
+                MessageBox.Show("Esta carta no coincide en color ni en número.");
+            }
+        }
+
+
     }
 }

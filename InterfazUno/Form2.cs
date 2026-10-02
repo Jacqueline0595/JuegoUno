@@ -476,7 +476,6 @@ namespace InterfazUno
             {
                 Image imagenFinal = cartaClickeada.Image;
 
-                // --- INICIO MODIFICACIÓN: Corrección de rotación de cartas ---
                 if (jugadorCarta == 1)
                 {
                     imagenFinal.RotateFlip(RotateFlipType.Rotate90FlipNone);
@@ -485,7 +484,6 @@ namespace InterfazUno
                 {
                     imagenFinal.RotateFlip(RotateFlipType.Rotate270FlipNone);
                 }
-                // --- FIN MODIFICACIÓN ---
 
                 cartaMesa.Image = imagenFinal;
                 cartaMesa.Tag = nombreCartaMano;
@@ -494,13 +492,22 @@ namespace InterfazUno
                 this.Controls.Remove(cartaClickeada);
                 cartaClickeada.Dispose();
 
-                SiguienteTurno();
+                // --- INICIO MODIFICACIÓN: Logica de la carta Bloqueo ---
+                if (nombreCartaMano.Contains("bloqueo") || nombreCartaMano.Contains("skip"))
+                {
+                    MessageBox.Show("¡Carta de Bloqueo! Se salta el turno del siguiente jugador.");
+                    SiguienteTurno();
+                }
+                // --- FIN MODIFICACIÓN ---
+
+                SiguienteTurno(); 
             }
             else
             {
                 MessageBox.Show("Esta carta no coincide en color ni en número.");
             }
         }
+
 
 
     }

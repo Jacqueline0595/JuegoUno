@@ -16,8 +16,9 @@ namespace InterfazUno
 
         List<string> usados;
         string[] archivos;
-        string ruta_d = "C:\\Users\\aslan\\source\\repos\\JuegoUno\\InterfazUno\\bin\\Debug\\Cartas\\";
-        string texto_elim = "C:\\Users\\aslan\\source\\repos\\JuegoUno\\InterfazUno\\bin\\Debug\\Cartas\\";
+        string ruta_d = Path.Combine(Application.StartupPath, "Cartas") + "\\";
+        string texto_elim = Path.Combine(Application.StartupPath, "Cartas") + "\\";
+
         Size tam = new Size(100, 150);
         Size tam_2 = new Size(150, 100);
         Random ran = new Random();
@@ -323,6 +324,7 @@ namespace InterfazUno
             img.Name = jugador.ToString();
             img.MouseEnter += img_MouseEnter;
             img.MouseLeave += img_MouseLeave;
+            img.Click += Carta_Click;
             this.Controls.Add(img);
             manos[jugador].Add(img);
             return img;
@@ -423,9 +425,134 @@ namespace InterfazUno
             }
         }
 
+  
         private void Baraja_Click(object sender, EventArgs e)
         {
-           
+            string nombreCartaNueva = CartaAlAzar(usados);
+            CrearCarta(nombreCartaNueva, turno);
+
+            SiguienteTurno();
         }
+        private bool EsJugadaValida(string cartaMano, string cartaMesa)
+        {
+            cartaMano = cartaMano.ToLower();
+            cartaMesa = cartaMesa.ToLower();
+
+            if (cartaMano.Contains("cambiar_color") || cartaMano.Contains("mas_cuatro") || cartaMano.Contains("wild"))
+            {
+                return true;
+            }
+
+            //  INICIO MODIFICACIÓN: Buscador dinamico de color 
+            string[] colores = { "rojo", "verde", "azul", "amarillo" };
+            string colorMano = "";
+            string colorMesa = "";
+
+            foreach (string c in colores)
+            {
+                if (cartaMano.Contains(c)) colorMano = c;
+                if (cartaMesa.Contains(c)) colorMesa = c;
+            }
+
+            if (!string.IsNullOrEmpty(colorMano) && colorMano == colorMesa)
+            {
+                return true;
+            }
+            //  FIN MODIFICACIÓN 
+
+            //  INICIO MODIFICACIÓN: Buscador dinamico de numero o accion 
+            string manoLimpia = cartaMano.Replace(".png", "");
+            string mesaLimpia = cartaMesa.Replace(".png", "");
+
+            string[] partesMano = manoLimpia.Split('_');
+            string[] partesMesa = mesaLimpia.Split('_');
+
+            foreach (string parteM in partesMano)
+            {
+                if (parteM == "rojo" || parteM == "verde" || parteM == "azul" || parteM == "amarillo") continue;
+
+                foreach (string parteMe in partesMesa)
+                {
+                    if (parteM == parteMe)
+                    {
+                        return true;
+                    }
+                }
+            }
+            // --- FIN MODIFICACIÓN ---
+
+            return false;
+        }
+
+
+        private void Carta_Click(object sender, EventArgs e)
+        {
+            Label cartaClickeada = (Label)sender;
+            int jugadorCarta = int.Parse(cartaClickeada.Name);
+
+            if (jugadorCarta != turno)
+            {
+                MessageBox.Show("¡No es tu turno!");
+                return;
+            }
+
+            string nombreCartaMano = cartaClickeada.Tag.ToString();
+            string nombreCartaMesa = cartaMesa.Tag.ToString();
+
+            if (EsJugadaValida(nombreCartaMano, nombreCartaMesa))
+            {
+                Image imagenFinal = cartaClickeada.Image;
+
+                if (jugadorCarta == 1)
+                {
+                    imagenFinal.RotateFlip(RotateFlipType.Rotate90FlipNone);
+                }
+                else if (jugadorCarta == 3)
+                {
+                    imagenFinal.RotateFlip(RotateFlipType.Rotate270FlipNone);
+                }
+
+                cartaMesa.Image = imagenFinal;
+                cartaMesa.Tag = nombreCartaMano;
+
+                manos[turno].Remove(cartaClickeada);
+                this.Controls.Remove(cartaClickeada);
+                cartaClickeada.Dispose();
+
+                // --- LOGICA DE CARTAS ESPECIALES ---
+
+                // 1. Si es carta de Bloqueo
+                if (nombreCartaMano.Contains("bloqueo") || nombreCartaMano.Contains("skip"))
+                {
+                    MessageBox.Show("¡Carta de Bloqueo! Se salta el turno del siguiente jugador.");
+                    SiguienteTurno();
+                }
+
+                // 2. Si es carta de +2
+                else if (nombreCartaMano.Contains("mas_dos") || nombreCartaMano.Contains("mas2") || nombreCartaMano.Contains("draw2"))
+                {
+                    int siguienteJugador = (turno + 1) % 4;
+
+                    MessageBox.Show("¡Carta +2! El Jugador " + (siguienteJugador + 1) + " recibe 2 cartas y pierde su turno.");
+
+                    CrearCarta(CartaAlAzar(usados), siguienteJugador);
+                    CrearCarta(CartaAlAzar(usados), siguienteJugador);
+
+                    SiguienteTurno();
+                }
+
+                // --- FIN LOGICA DE CARTAS ESPECIALES ---
+
+                SiguienteTurno();
+            }
+            else
+            {
+                MessageBox.Show("Esta carta no coincide en color ni en número.");
+            }
+        }
+
+
+
+
     }
 }

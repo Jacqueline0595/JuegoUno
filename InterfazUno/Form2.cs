@@ -31,6 +31,7 @@ namespace InterfazUno
         int repartidor;
         int turno;
         int direccion = 1;
+        bool sentidoHorario = true; 
 
         public Form2()
         {
@@ -373,11 +374,13 @@ namespace InterfazUno
                 return false;
             }
         }
+        
         private void SiguienteTurno()
         {
             turno = (turno + direccion + 4) % 4;
             Resaltar(turno);
         }
+
         private void img_MouseEnter(object sender, EventArgs e)
         {
             Label img = (Label)sender;
@@ -519,8 +522,6 @@ namespace InterfazUno
                 this.Controls.Remove(cartaClickeada);
                 cartaClickeada.Dispose();
 
-                // --- LOGICA DE CARTAS ESPECIALES ---
-
                 // 1. Si es carta de Bloqueo
                 if (nombreCartaMano.Contains("bloqueo") || nombreCartaMano.Contains("skip"))
                 {
@@ -531,7 +532,7 @@ namespace InterfazUno
                 // 2. Si es carta de +2
                 else if (nombreCartaMano.Contains("mas_dos") || nombreCartaMano.Contains("mas2") || nombreCartaMano.Contains("draw2"))
                 {
-                    int siguienteJugador = (turno + 1) % 4;
+                    int siguienteJugador = (turno + direccion + 4) % 4;
 
                     MessageBox.Show("¡Carta +2! El Jugador " + (siguienteJugador + 1) + " recibe 2 cartas y pierde su turno.");
 
@@ -540,8 +541,12 @@ namespace InterfazUno
 
                     SiguienteTurno();
                 }
-
-                // --- FIN LOGICA DE CARTAS ESPECIALES ---
+                // 3. Si es carta de Reversa
+                else if (nombreCartaMano.Contains("reversa") || nombreCartaMano.Contains("reverse"))
+                {
+                    direccion = direccion * -1; 
+                    MessageBox.Show("¡Carta Reversa! Se ha cambiado la dirección del juego.");
+                }
 
                 SiguienteTurno();
             }

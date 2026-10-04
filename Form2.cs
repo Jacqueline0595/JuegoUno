@@ -574,6 +574,24 @@ namespace InterfazUno
                 cartaClickeada.Dispose();
                 ReorganizarMano(turno);
 
+                ReorganizarMano(turno);
+
+                if (manos[jugadorCarta].Count == 1)
+                {
+                    DialogResult grito = MessageBox.Show("¡Al " + nombres[jugadorCarta] + " le queda una sola carta!\n\n¿Presionaste el botón a tiempo para gritar ¡UNO!?", "Regla del UNO", MessageBoxButtons.YesNo, MessageBoxIcon.Exclamation);
+
+                    if (grito == DialogResult.No)
+                    {
+                        MessageBox.Show("¡No gritaste ¡UNO! a tiempo! Penalización: Recibes 2 cartas de castigo del mazo.", "Penalización", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        CrearCarta(CartaAlAzar(usados), jugadorCarta);
+                        CrearCarta(CartaAlAzar(usados), jugadorCarta);
+                    }
+                    else
+                    {
+                        MessageBox.Show("¡Grito válido! El " + nombres[jugadorCarta] + " ha cantado ¡UNO! con éxito.", "UNO", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                }
+
                 // Si es carta de Bloqueo
                 if (nombreCartaMano.Contains("bloqueo") || nombreCartaMano.Contains("skip"))
                 {

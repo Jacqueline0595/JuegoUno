@@ -31,7 +31,9 @@ namespace InterfazUno
         int repartidor;
         int turno;
         int direccion = 1;
-        bool sentidoHorario = true; 
+        bool sentidoHorario = true;
+        Panel marcoTurno;
+
 
         public Form2()
         {
@@ -52,6 +54,12 @@ namespace InterfazUno
             CrearNombres();
             CrearBaraja();
             CrearBotonReinicio();
+            
+            marcoTurno = new Panel();
+            marcoTurno.BackColor = Color.FromArgb(80, 255, 215, 0); 
+            marcoTurno.Size = new Size(1, 1); 
+            this.Controls.Add(marcoTurno);
+
             await IniciarJuego();
         }
 
@@ -129,6 +137,7 @@ namespace InterfazUno
 
         private void Resaltar(int jugador)
         {
+            
             for (int i = 0; i < 4; i++)
             {
                 if (i == jugador)
@@ -142,7 +151,40 @@ namespace InterfazUno
                     lblNombres[i].ForeColor = Color.White;
                 }
             }
+
+            
+            if (marcoTurno == null) return;
+
+            if (jugador >= 0 && jugador <= 3)
+            {
+                marcoTurno.Visible = true;
+
+                
+                switch (jugador)
+                {
+                    case 0: 
+                        marcoTurno.Bounds = new Rectangle(380, 25, 700, 180);
+                        break;
+                    case 1: 
+                        marcoTurno.Bounds = new Rectangle(1280, 130, 200, 600);
+                        break;
+                    case 2: 
+                        marcoTurno.Bounds = new Rectangle(380, 685, 700, 180);
+                        break;
+                    case 3: 
+                        marcoTurno.Bounds = new Rectangle(30, 130, 200, 600);
+                        break;
+                }
+
+                
+                marcoTurno.SendToBack();
+            }
+            else
+            {
+                marcoTurno.Visible = false; 
+            }
         }
+
 
         private async Task IniciarJuego()
         {

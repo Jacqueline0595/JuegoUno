@@ -592,6 +592,19 @@ namespace InterfazUno
                     }
                 }
 
+                if (manos[jugadorCarta].Count == 0)
+                {
+                    MessageBox.Show("¡Felicidades!\n\nEl " + nombres[jugadorCarta] + " ha tirado todas sus cartas y ha GANADO la partida de UNO. 🏆🎉", "¡Fin del Juego!", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                    if (lblBaraja != null) lblBaraja.Enabled = false;
+
+                    Resaltar(-1);
+
+                    lblInfo.Text = "¡Partida Terminada! Ganador: " + nombres[jugadorCarta].ToUpper();
+
+                    return;
+                }
+
                 // Si es carta de Bloqueo
                 if (nombreCartaMano.Contains("bloqueo") || nombreCartaMano.Contains("skip"))
                 {

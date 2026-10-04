@@ -293,11 +293,14 @@ namespace InterfazUno
                 default: return 0; 
             }
         }
+
         private Label CrearCarta(string nombre, int jugador)
         {
             Label img = new Label();
             Image carta = CargarImagen(nombre, tam, ruta_d);
-            int sumador = manos[jugador].Count * 80;
+
+            int sumador = manos[jugador].Count * 30;
+
             switch (jugador)
             {
                 case 0:
@@ -326,10 +329,16 @@ namespace InterfazUno
             img.MouseEnter += img_MouseEnter;
             img.MouseLeave += img_MouseLeave;
             img.Click += Carta_Click;
+
             this.Controls.Add(img);
+
+            img.BringToFront();
+
             manos[jugador].Add(img);
+            ReorganizarMano(jugador);
             return img;
         }
+
 
         private void LimpiarManos()
         {
@@ -521,6 +530,7 @@ namespace InterfazUno
                 manos[turno].Remove(cartaClickeada);
                 this.Controls.Remove(cartaClickeada);
                 cartaClickeada.Dispose();
+                ReorganizarMano(turno);
 
                 // Si es carta de Bloqueo
                 if (nombreCartaMano.Contains("bloqueo") || nombreCartaMano.Contains("skip"))
@@ -612,6 +622,33 @@ namespace InterfazUno
 
             return "rojo";
         }
+
+        private void ReorganizarMano(int jugador)
+        {
+            for (int i = 0; i < manos[jugador].Count; i++)
+            {
+                Label img = manos[jugador][i];
+                int sumador = i * 35; 
+
+                switch (jugador)
+                {
+                    case 0:
+                        img.Location = new Point(400 + sumador, 40);
+                        break;
+                    case 1:
+                        img.Location = new Point(1300, 150 + sumador);
+                        break;
+                    case 2:
+                        img.Location = new Point(400 + sumador, 700);
+                        break;
+                    case 3:
+                        img.Location = new Point(50, 150 + sumador);
+                        break;
+                }
+                img.BringToFront(); 
+            }
+        }
+
 
     }
 }

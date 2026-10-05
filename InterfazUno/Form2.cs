@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -9,424 +9,263 @@ using System.Windows.Forms;
 namespace InterfazUno
 {
     public partial class Form2 : Form
-    {   //comentario para que aparezca el form2
-        string[] nombres = { "Jugador 1", "Jugador 2", "Jugador 3", "Jugador 4" };
-        Label[] lblNombres = new Label[4];
-        List<Label>[] manos = new List<Label>[4];   
-
-        List<string> usados;
-        string[] archivos;
-        string ruta_d = "C:\\Users\\jacqu\\source\\repos\\JuegoUno\\InterfazUno\\bin\\Debug\\Cartas\\";
-        string texto_elim = "C:\\Users\\jacqu\\source\\repos\\JuegoUno\\InterfazUno\\bin\\Debug\\Cartas\\";
-        Size tam = new Size(100, 150);
-        Size tam_2 = new Size(150, 100);
-        Random ran = new Random();
-
-        Label lblBaraja;  
-        Label cartaMesa;   
-        Label lblInfo;
-        Button btnReinicio;
-        int partida = 0;
-        int repartidor;
-        int turno;
-        int direccion = 1;
+    {
+        readonly string[] nombres = { "Jugador 1", "Jugador 2", "Jugador 3", "Jugador 4" };
+        readonly Label[] lblNombres = new Label[4];
+        readonly List<Label>[] manos = Enumerable.Range(0, 4).Select(i => new List<Label>()).ToArray();
+        readonly Size tam = new Size(100, 150);
+        EstadoPartida estado;
+        Label lblBaraja, cartaMesa, lblInfo;
+        Button btnReinicio, btnPasar, btnActualizar;
+        bool ocupado, cerrado;
 
         public Form2()
         {
             InitializeComponent();
-            this.Icon = new Icon("Recursos\\logoUno.ico");
+            Icon = new Icon(Path.Combine(Application.StartupPath, "Recursos", "logoUno.ico"));
+            FormClosed += (s, e) =>
+            {
+                cerrado = true;
+                LimpiarManos();
+                cartaMesa?.Image?.Dispose();
+                lblBaraja?.Image?.Dispose();
+                BackgroundImage?.Dispose();
+                Icon?.Dispose();
+            };
         }
 
         private async void Form2_Load(object sender, EventArgs e)
         {
-            this.Text = "Uno";
-            this.WindowState = FormWindowState.Maximized;
-            this.FormBorderStyle = FormBorderStyle.None;
-            this.MinimizeBox = false;
-            this.CenterToScreen();
-            Image fondo = CargarImagen("juego_fondo.jpg", new Size(736, 368), "Recursos");
-            this.BackgroundImage = fondo;
-            this.BackgroundImageLayout = ImageLayout.Stretch;
-            archivos = Directory.GetFiles(ruta_d);
-            CrearNombres();
-            CrearBaraja();
-            CrearBotonReinicio();
-            await IniciarJuego();
+            try
+            {
+                Text = "UNO";
+                WindowState = FormWindowState.Maximized;
+                // Conservamos el tablero, con desplazamiento en pantallas pequeñas.
+                AutoScroll = true;
+                AutoScrollMinSize = new Size(1450, 950);
+                BackgroundImage = CargarImagen("juego_fondo.jpg", new Size(736, 368), "Recursos");
+                BackgroundImageLayout = ImageLayout.Stretch;
+                CrearTablero();
+                await EjecutarAsync(NuevaPartidaAsync);
+            }
+            catch (Exception ex) { MessageBox.Show(this, ex.Message, "No se pudo abrir el tablero"); Close(); }
         }
 
-        private Image CargarImagen(string nombreArchivo, Size tamaño, String ruta_d)
+        private Image CargarImagen(string archivo, Size size, string carpeta = "Cartas")
         {
-            string ruta = Path.Combine(Application.StartupPath, ruta_d, nombreArchivo);
-            if (!File.Exists(ruta))
-                throw new FileNotFoundException($"No se encontró la imagen: {ruta}");
-            Image original = Image.FromFile(ruta);
-            return new Bitmap(original, tamaño);
+            string ruta = Path.Combine(Application.StartupPath, carpeta, archivo);
+            using (Image original = Image.FromFile(ruta)) return new Bitmap(original, size);
         }
-        private void CrearBotonReinicio()
+
+        private Button Boton(string texto, int x, EventHandler accion)
         {
-            btnReinicio = new Button();
-            btnReinicio.Text = "Reiniciar";
-            btnReinicio.Size = new Size(120, 36);
-            btnReinicio.Location = new Point(10, 10);
-            btnReinicio.Font = new Font("Arial", 11, FontStyle.Bold);
-            btnReinicio.FlatStyle = FlatStyle.Flat;
-            btnReinicio.BackColor = Color.Red;
-            btnReinicio.ForeColor = Color.Black;
-            btnReinicio.Cursor = Cursors.Hand;
-            btnReinicio.Click += btnReinicio_Click;
-            this.Controls.Add(btnReinicio);
+            var b = new Button { Text = texto, Location = new Point(x, 10), Size = new Size(130, 36),
+                BackColor = Color.Red, ForeColor = Color.White, Cursor = Cursors.Hand };
+            b.Click += accion;
+            Controls.Add(b);
+            return b;
         }
-        private async void btnReinicio_Click(object sender, EventArgs e)
+
+        private void CrearTablero()
+        {
+            Point[] puntos = { new Point(610, 200), new Point(1280, 100), new Point(610, 865), new Point(25, 100) };
+            for (int i = 0; i < 4; i++)
+            {
+                lblNombres[i] = new Label { Text = nombres[i], Location = puntos[i], Size = new Size(160, 34),
+                    TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Arial", 12, FontStyle.Bold), ForeColor = Color.White };
+                Controls.Add(lblNombres[i]);
+            }
+            lblInfo = new Label { Location = new Point(380, 540), Size = new Size(680, 90),
+                TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Arial", 12, FontStyle.Bold),
+                BackColor = Color.FromArgb(170, 0, 0, 0), ForeColor = Color.White };
+            Controls.Add(lblInfo);
+            lblBaraja = new Label { Location = new Point(580, 370), Size = tam,
+                Image = CargarImagen("carta_uno.png", tam), Cursor = Cursors.Hand };
+            lblBaraja.Click += async (s, e) => await EjecutarAsync(() => MoverAsync("robar"));
+            Controls.Add(lblBaraja);
+            cartaMesa = new Label { Location = new Point(700, 370), Size = tam };
+            Controls.Add(cartaMesa);
+            btnReinicio = Boton("Nueva partida", 10, async (s, e) => await EjecutarAsync(NuevaPartidaAsync));
+            btnPasar = Boton("Pasar", 150, async (s, e) => await EjecutarAsync(() => MoverAsync("pasar")));
+            btnActualizar = Boton("Actualizar", 290, async (s, e) => await EjecutarAsync(ActualizarAsync));
+        }
+
+        private async Task EjecutarAsync(Func<Task> accion)
+        {
+            if (ocupado || cerrado) return;
+            ocupado = true;
+            Habilitar();
+            try { await accion(); }
+            catch (Exception ex)
+            {
+                if (cerrado) return;
+                // Una respuesta perdida puede haberse guardado. Consultar, nunca repetir el POST automáticamente.
+                bool recuperado = false;
+                if (estado != null)
+                {
+                    try { await ActualizarAsync(); recuperado = true; } catch { }
+                }
+                if (!recuperado) lblInfo.Text = "Sin conexión confirmada. Revisa API/MySQL y pulsa Actualizar.";
+                MessageBox.Show(this, ex.Message + "\n\nComprueba que la API esté encendida y la migración SQL aplicada.", "No se completó la operación");
+            }
+            finally { ocupado = false; if (!cerrado) Habilitar(); }
+        }
+
+        private void Habilitar()
+        {
+            bool jugando = !ocupado && estado != null && estado.estado == "en_curso";
+            btnReinicio.Enabled = !ocupado;
+            btnActualizar.Enabled = !ocupado && estado != null;
+            btnPasar.Enabled = jugando && estado.robada_id.HasValue;
+            lblBaraja.Enabled = jugando && !estado.robada_id.HasValue;
+            for (int i = 0; i < 4; i++)
+                foreach (Label l in manos[i]) l.Enabled = jugando && i == estado.turno;
+        }
+
+        private async Task NuevaPartidaAsync()
+        {
+            var existentes = (await UnoApi.UsuariosAsync()).ToList();
+            if (cerrado) return;
+            var ids = new List<int>();
+            foreach (string nombre in nombres)
+            {
+                Usuario u = existentes.FirstOrDefault(x => string.Equals(x.nombre, nombre, StringComparison.OrdinalIgnoreCase));
+                if (u == null) u = await UnoApi.CrearUsuarioAsync(nombre);
+                if (cerrado) return;
+                ids.Add(u.id);
+            }
+            if (estado != null && estado.estado == "en_curso")
+            {
+                estado = await UnoApi.AccionAsync(estado, "abandonar");
+                if (cerrado) return;
+            }
+            estado = await UnoApi.CrearPartidaAsync(ids.ToArray());
+            if (cerrado) return;
+            LimpiarManos();
+            cartaMesa.Image?.Dispose(); cartaMesa.Image = null;
+            for (int i = 0; i < 4; i++)
+            {
+                lblInfo.Text = nombres[i] + " elige carta para el sorteo";
+                CrearCarta(estado.sorteo[i], i);
+                await Task.Delay(450);
+                if (cerrado) return;
+            }
+            lblInfo.Text = nombres[estado.repartidor] + " reparte";
+            await Task.Delay(800);
+            if (cerrado) return;
+            LimpiarManos();
+            foreach (Carta c in estado.cartas.Where(c => c.zona == "mano").OrderBy(c => c.orden))
+            {
+                int jugador = Array.FindIndex(estado.jugadores, u => u.id == c.propietario_id);
+                CrearCarta(c, jugador);
+                await Task.Delay(50);
+                if (cerrado) return;
+            }
+            Dibujar();
+        }
+
+        private async Task ActualizarAsync()
+        {
+            if (estado == null) return;
+            estado = await UnoApi.EstadoAsync(estado.id);
+            if (!cerrado) Dibujar();
+        }
+
+        private async Task MoverAsync(string accion, Carta carta = null)
+        {
+            if (estado == null || estado.estado != "en_curso") return;
+            string color = null;
+            if (carta != null && carta.color == "negro")
+            {
+                color = ElegirColor();
+                if (color == null) return;
+            }
+            estado = await UnoApi.AccionAsync(estado, accion, carta?.carta_id, color);
+            if (!cerrado) Dibujar();
+        }
+
+        private string ElegirColor()
+        {
+            using (var dialogo = new Form { Text = "Elige un color", Size = new Size(390, 150),
+                StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false, MinimizeBox = false })
+            {
+                string elegido = null;
+                string[] colores = { "rojo", "amarillo", "verde", "azul" };
+                Color[] tonos = { Color.Red, Color.Gold, Color.LightGreen, Color.LightBlue };
+                for (int i = 0; i < 4; i++)
+                {
+                    string color = colores[i];
+                    var b = new Button { Text = color, BackColor = tonos[i], Location = new Point(10+i*90, 30), Size = new Size(85, 40) };
+                    b.Click += (s, e) => { elegido = color; dialogo.DialogResult = DialogResult.OK; };
+                    dialogo.Controls.Add(b);
+                }
+                return dialogo.ShowDialog(this) == DialogResult.OK ? elegido : null;
+            }
+        }
+
+        private void Dibujar()
         {
             LimpiarManos();
-            if (cartaMesa != null)
-            {
-                this.Controls.Remove(cartaMesa);
-                cartaMesa.Dispose();
-                cartaMesa = null;
-            }
-            Resaltar(-1);
-            await IniciarJuego();
-        }
-        private void CrearNombres()
-        {
-            Point[] pos = { new Point(610, 195), new Point(1295, 100), new Point(610, 855), new Point(45, 100) };
             for (int i = 0; i < 4; i++)
             {
-                lblNombres[i] = new Label();
-                lblNombres[i].Text = nombres[i];
-                lblNombres[i].Size = new Size(160, 34);
-                lblNombres[i].Location = pos[i];
-                lblNombres[i].TextAlign = ContentAlignment.MiddleCenter;
-                lblNombres[i].Font = new Font("Arial", 12, FontStyle.Bold);
-                lblNombres[i].ForeColor = Color.White;
-                lblNombres[i].BackColor = Color.FromArgb(170, 0, 0, 0);
-                this.Controls.Add(lblNombres[i]);
-                manos[i] = new List<Label>();
+                foreach (Carta c in estado.cartas.Where(c => c.zona == "mano" && c.propietario_id == estado.jugadores[i].id)) CrearCarta(c, i);
+                lblNombres[i].Text = estado.jugadores[i].nombre + " (" + manos[i].Count + ")";
+                lblNombres[i].BackColor = estado.estado == "en_curso" && i == estado.turno ? Color.Gold : Color.Black;
+                lblNombres[i].ForeColor = i == estado.turno ? Color.Black : Color.White;
             }
-
-            lblInfo = new Label();
-            lblInfo.Size = new Size(400, 32);
-            lblInfo.Location = new Point(490, 540);
-            lblInfo.TextAlign = ContentAlignment.MiddleCenter;
-            lblInfo.Font = new Font("Arial", 12, FontStyle.Bold);
-            lblInfo.ForeColor = Color.White;
-            lblInfo.BackColor = Color.FromArgb(170, 0, 0, 0);
-            this.Controls.Add(lblInfo);
+            Carta superior = estado.cartas.Where(c => c.zona == "descarte").OrderBy(c => c.orden).Last();
+            cartaMesa.Image?.Dispose();
+            cartaMesa.Image = CargarImagen(superior.ArchivoImagen(), tam);
+            cartaMesa.Tag = superior;
+            if (estado.estado == "terminada")
+                lblInfo.Text = estado.ganador_id.HasValue
+                    ? "Ganó " + estado.jugadores.First(u => u.id == estado.ganador_id).nombre + ". Resultado guardado."
+                    : "Partida cerrada sin ganador.";
+            else
+                lblInfo.Text = "Partida " + estado.id + " — Turno: " + estado.jugadores[estado.turno].nombre
+                    + "\nColor: " + estado.color_activo + " | Dirección: " + (estado.direccion == 1 ? "horaria" : "antihoraria")
+                    + " | Mazo: " + estado.cartas.Count(c => c.zona == "mazo")
+                    + (estado.robada_id.HasValue ? "\nJuega la carta robada o pulsa Pasar." : "\nPulsa una carta para jugar o el mazo para robar.");
+            Habilitar();
         }
 
-        private void CrearBaraja()
+        private void CrearCarta(Carta carta, int jugador)
         {
-            lblBaraja = new Label();
-            lblBaraja.Size = tam;
-            lblBaraja.Location = new Point(580, 370);
-            lblBaraja.Image = CargarImagen("carta_uno.png", tam, ruta_d);
-            lblBaraja.Cursor = Cursors.Hand;
-            lblBaraja.Click += Baraja_Click;
-            this.Controls.Add(lblBaraja);
-        }
-
-        private void Resaltar(int jugador)
-        {
-            for (int i = 0; i < 4; i++)
+            int total = estado == null ? 7 : Math.Max(7, estado.cartas.Count(c => c.zona == "mano" && c.propietario_id == estado.jugadores[jugador].id));
+            int paso = Math.Min(80, 650 / Math.Max(1, total-1));
+            int desplazamiento = manos[jugador].Count * paso;
+            Image imagen = CargarImagen(carta.ArchivoImagen(), tam);
+            var l = new Label { Image = imagen, Tag = carta, Cursor = Cursors.Hand, Size = tam };
+            if (jugador == 0) l.Location = new Point(350+desplazamiento, 45);
+            if (jugador == 2) l.Location = new Point(350+desplazamiento, 700);
+            if (jugador == 1 || jugador == 3)
             {
-                if (i == jugador)
-                {
-                    lblNombres[i].BackColor = Color.Gold;
-                    lblNombres[i].ForeColor = Color.Black;
-                }
-                else
-                {
-                    lblNombres[i].BackColor = Color.FromArgb(170, 0, 0, 0);
-                    lblNombres[i].ForeColor = Color.White;
-                }
+                imagen.RotateFlip(jugador == 1 ? RotateFlipType.Rotate270FlipNone : RotateFlipType.Rotate90FlipNone);
+                l.Size = new Size(150, 100);
+                l.Location = new Point(jugador == 1 ? 1280 : 25, 150+desplazamiento);
             }
-        }
-
-        private async Task IniciarJuego()
-        {
-            int id = ++partida;
-            usados = new List<string>() { "carta_vacia.png", "carta_uno.png", "carta_vacia.png", "carta_uno.png" };
-            lblInfo.Text = "Cada jugador elige una carta";
-            await Task.Delay(800);
-            if (id != partida) 
-                return;
-            await ElegirRepartidor(id);
-            if (id != partida) 
-                return;
-            await RepartirCartas(id);
-        }
-
-        private async Task ElegirRepartidor(int id)
-        {
-            while (true)
+            // No altera dimensiones acumulativamente al entrar/salir con el ratón.
+            l.MouseEnter += (s, e) => l.BorderStyle = BorderStyle.Fixed3D;
+            l.MouseLeave += (s, e) => l.BorderStyle = BorderStyle.None;
+            l.Click += async (s, e) =>
             {
-                List<string> temp = new List<string>() { "carta_vacia.png", "carta_uno.png", "carta_vacia.png", "carta_uno.png" };
-                int[] valores = new int[4];
-                for (int i = 0; i < 4; i++)
-                {
-                    Resaltar(i);
-                    lblInfo.Text = nombres[i] + " Elige una carta";
-                    string nombre = CartaAlAzar(temp);
-                    CrearCarta(nombre, i);
-                    valores[i] = ValorCarta(nombre);
-                    await Task.Delay(800);
-                    if (id != partida) 
-                        return;
-                }
-                int max = valores.Max();
-                int cuantos = 0;
-                for (int i = 0; i < 4; i++)
-                {
-                    if (valores[i] == max)
-                        cuantos++;
-                }
-                repartidor = Array.IndexOf(valores, max);
-                if (cuantos == 1)
-                {
-                    Resaltar(repartidor);
-                    lblInfo.Text = nombres[repartidor] + " reparte";
-                }
-                else
-                {
-                    Resaltar(-1);
-                    lblInfo.Text = "Empate, se repite";
-                }
-                await Task.Delay(1800);
-                if (id != partida) 
-                    return;
-                LimpiarManos();
-                if (cuantos == 1)
-                    return;
-            }
-        }
-
-        private async Task RepartirCartas(int id)
-        {
-            Resaltar(-1);
-            lblInfo.Text = nombres[repartidor] + " reparte";
-            int cont = (repartidor + 1) % 4;
-            int imagenes = 0;
-            while (imagenes < 28)
-            {
-                string nombre = CartaAlAzar(usados);
-                CrearCarta(nombre, cont);
-                cont = (cont + 1) % 4;
-                imagenes++;
-                await Task.Delay(50);
-                if (id != partida)
-                    return;
-            }
-            string centro = CartaAlAzar(usados);
-            while (centro.StartsWith("mas_cuatro"))
-            {
-                usados.Remove(centro);
-                centro = CartaAlAzar(usados);
-            }
-            cartaMesa = new Label();
-            cartaMesa.Size = tam;
-            cartaMesa.Location = new Point(700, 370);
-            cartaMesa.Image = CargarImagen(centro, tam, ruta_d);
-            cartaMesa.Tag = centro;
-            this.Controls.Add(cartaMesa);
-            direccion = 1;
-            turno = (repartidor + 1) % 4;
-            string msg = "Repartio " + nombres[repartidor];
-            if (centro.StartsWith("reverse"))
-            {
-                direccion = -1;
-                turno = repartidor;
-            }
-            if (centro.StartsWith("bloqueo"))
-            {
-                msg += ". " + nombres[turno] + " Fue bloqueado ";
-                turno = (repartidor + 1) % 4;
-            }
-            if(centro.StartsWith("mas_dos"))
-            {
-                msg += ". " + nombres[turno] + " Toma dos cartas ";
-                turno = (repartidor + 1) % 4;
-
-            }
-            if(centro.StartsWith("cambiar_color"))
-            {
-               msg += ". " + nombres[turno] + " Cambia el color ";
-               turno = (repartidor + 1) % 4;
-            }
-            Resaltar(turno);
-            lblInfo.Text = msg + ". Empieza " + nombres[turno];
-        }
-        private string CartaAlAzar(List<string> lista)
-        {
-            while (true)
-            {
-                string select = archivos[ran.Next(archivos.Length)];
-                string nombre = Path.GetFileName(select);
-                if (!Comprueba_usados(lista, nombre))
-                {
-                    lista.Add(nombre);
-                    return nombre;
-                }
-            }
-        }
-
-        private int ValorCarta(string nombre)  
-        {
-            string primero = Path.GetFileName(nombre).Split('_')[0].ToLower();
-
-            int v;
-            if (int.TryParse(primero, out v))
-                return v;
-            switch (primero)
-            {
-                case "cero": return 0;
-                case "uno": return 1;
-                case "dos": return 2;
-                case "tres": return 3;
-                case "cuatro": return 4;
-                case "cinco": return 5;
-                case "seis": return 6;
-                case "siete": return 7;
-                case "ocho": return 8;
-                case "nueve": return 9;
-                default: return 0; 
-            }
-        }
-        private Label CrearCarta(string nombre, int jugador)
-        {
-            Label img = new Label();
-            Image carta = CargarImagen(nombre, tam, ruta_d);
-            int sumador = manos[jugador].Count * 80;
-            switch (jugador)
-            {
-                case 0:
-                    img.Location = new Point(400 + sumador, 40);
-                    img.Size = tam;
-                    break;
-                case 1:
-                    img.Location = new Point(1300, 150 + sumador);
-                    carta.RotateFlip(RotateFlipType.Rotate270FlipNone);
-                    img.Size = tam_2;
-                    break;
-                case 2:
-                    img.Location = new Point(400 + sumador, 700);
-                    img.Size = tam;
-                    break;
-                case 3:
-                    img.Location = new Point(50, 150 + sumador);
-                    carta.RotateFlip(RotateFlipType.Rotate90FlipNone);
-                    img.Size = tam_2;
-                    break;
-            }
-            img.Image = carta;
-            img.ImageAlign = ContentAlignment.TopLeft;
-            img.Tag = nombre;
-            img.Name = jugador.ToString();
-            img.MouseEnter += img_MouseEnter;
-            img.MouseLeave += img_MouseLeave;
-            this.Controls.Add(img);
-            manos[jugador].Add(img);
-            return img;
+                if (estado != null && jugador == estado.turno)
+                    await EjecutarAsync(() => MoverAsync("jugar", (Carta)l.Tag));
+            };
+            l.Enabled = false;
+            manos[jugador].Add(l);
+            Controls.Add(l);
+            l.BringToFront();
         }
 
         private void LimpiarManos()
         {
-            for (int i = 0; i < 4; i++)
+            foreach (var mano in manos)
             {
-                foreach (Label l in manos[i])
-                {
-                    this.Controls.Remove(l);
-                    l.Dispose();
-                }
-                manos[i].Clear();
+                foreach (var l in mano) { Controls.Remove(l); l.Image?.Dispose(); l.Dispose(); }
+                mano.Clear();
             }
-        }
-
-        private bool Comprueba_usados(List<string> usados, string carta)
-        {
-            string cero = "cero";
-            int cont = 0;
-            for (int i = 0; i < usados.Count; i++)
-            {
-                if (carta.StartsWith(cero))
-                {
-                    if (usados[i] == carta)
-                    {
-                        return true;
-                    }
-                }
-                else
-                {
-                    if (usados[i] == carta)
-                    {
-                        cont++;
-                    }
-                }
-            }
-            if (cont >= 2)
-            {
-                return true;
-            }
-            else
-            {
-                return false;
-            }
-        }
-        private void SiguienteTurno()
-        {
-            turno = (turno + direccion + 4) % 4;
-            Resaltar(turno);
-        }
-        private void img_MouseEnter(object sender, EventArgs e)
-        {
-            Label img = (Label)sender;
-            switch (img.Name)
-            {
-                case "0":   
-                    img.Height += 30;
-                    img.ImageAlign = ContentAlignment.BottomLeft;
-                    break;
-                case "1":  
-                    img.Left -= 30;
-                    img.Width += 30;
-                    break;
-                case "2":  
-                    img.Top -= 30;
-                    img.Height += 30;
-                    break;
-                case "3":   
-                    img.Width += 30;
-                    img.ImageAlign = ContentAlignment.TopRight;
-                    break;
-            }
-        }
-         private void img_MouseLeave(object sender, EventArgs e)
-        {
-            Label img = (Label)sender;
-            switch (img.Name)
-            {
-                case "0":
-                    img.Height -= 30;
-                    img.ImageAlign = ContentAlignment.TopLeft;
-                    break;
-                case "1":
-                    img.Left += 30;
-                    img.Width -= 30;
-                    break;
-                case "2":
-                    img.Top += 30;
-                    img.Height -= 30;
-                    break;
-                case "3":
-                    img.Width -= 30;
-                    img.ImageAlign = ContentAlignment.TopLeft;
-                    break;
-            }
-        }
-
-        private void Baraja_Click(object sender, EventArgs e)
-        {
-           
         }
     }
 }

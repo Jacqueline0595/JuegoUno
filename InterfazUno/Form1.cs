@@ -17,7 +17,8 @@ namespace InterfazUno
         public Form1()
         {
             InitializeComponent();
-            this.Icon = new Icon("Recursos\\logoUno.ico");
+            this.Icon = new Icon(Path.Combine(Application.StartupPath, "Recursos", "logoUno.ico"));
+            this.FormClosed += (s, e) => { BackgroundImage?.Dispose(); Icon?.Dispose(); letra.Dispose(); };
         }
 
         private void Form1_Load(object sender, EventArgs e)
@@ -53,8 +54,8 @@ namespace InterfazUno
             string ruta = Path.Combine(Application.StartupPath, ruta_d, nombreArchivo);
             if (!File.Exists(ruta))
                 throw new FileNotFoundException($"No se encontró la imagen: {ruta}");
-            Image original = Image.FromFile(ruta);
-            return new Bitmap(original, tamaño);
+            using (Image original = Image.FromFile(ruta))
+                return new Bitmap(original, tamaño);
         }
 
         private void Play_Click(object sender, EventArgs e)

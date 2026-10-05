@@ -41,8 +41,9 @@ namespace InterfazUno
         {
             this.Text = "Uno";
             this.WindowState = FormWindowState.Maximized;
-            this.FormBorderStyle = FormBorderStyle.None;
+            // this.FormBorderStyle = FormBorderStyle.None;
             this.MinimizeBox = false;
+            this.MaximizeBox = false;
             this.CenterToScreen();
             Image fondo = CargarImagen("juego_fondo.jpg", new Size(736, 368), "Recursos");
             this.BackgroundImage = fondo;

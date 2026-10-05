@@ -9,7 +9,8 @@ using System.Windows.Forms;
 namespace InterfazUno
 {
     public partial class Form2 : Form
-    {   //comentario para que aparezca el form2
+    {   
+        //comentario para que aparezca el form2
         string[] nombres = { "Jugador 1", "Jugador 2", "Jugador 3", "Jugador 4" };
         Label[] lblNombres = new Label[4];
         List<Label>[] manos = new List<Label>[4];   
@@ -63,6 +64,7 @@ namespace InterfazUno
             Image original = Image.FromFile(ruta);
             return new Bitmap(original, tamaño);
         }
+
         private void CrearBotonReinicio()
         {
             btnReinicio = new Button();
@@ -207,6 +209,7 @@ namespace InterfazUno
             Resaltar(-1);
             lblInfo.Text = nombres[repartidor] + " reparte";
             int cont = (repartidor + 1) % 4;
+            turno = (repartidor + 1) % 4;
             int imagenes = 0;
             while (imagenes < 28)
             {
@@ -231,7 +234,6 @@ namespace InterfazUno
             cartaMesa.Tag = centro;
             this.Controls.Add(cartaMesa);
             direccion = 1;
-            turno = (repartidor + 1) % 4;
             string msg = "Repartio " + nombres[repartidor];
             if (centro.StartsWith("reverse"))
             {
@@ -257,6 +259,7 @@ namespace InterfazUno
             Resaltar(turno);
             lblInfo.Text = msg + ". Empieza " + nombres[turno];
         }
+
         private string CartaAlAzar(List<string> lista)
         {
             while (true)
@@ -293,10 +296,15 @@ namespace InterfazUno
                 default: return 0; 
             }
         }
+
         private Label CrearCarta(string nombre, int jugador)
         {
             Label img = new Label();
             Image carta = CargarImagen(nombre, tam, ruta_d);
+            // Parte donde convertimos a blanco y negro dependiendo del turno
+            if(jugador != turno)
+                carta = convertirBlancoNegro(carta);
+
             int sumador = manos[jugador].Count * 80;
             switch (jugador)
             {
@@ -328,6 +336,38 @@ namespace InterfazUno
             this.Controls.Add(img);
             manos[jugador].Add(img);
             return img;
+        }
+
+        private Image convertirBlancoNegro(Image imagen)
+        {
+            // Bitmat representa una imagen con una cuadricula
+            Bitmap nuevaCarta = new Bitmap(imagen.Width, imagen.Height);
+
+            // Para recorrer la imagen
+            for(int i = 0; i < imagen.Width; i++)
+            {
+                for (int j = 0; j < imagen.Height; j++)
+                {
+                    // Pedimos el color del pixel en que estamos
+                    Color color = ((Bitmap)imagen).GetPixel(i, j);
+
+                    // Sacamos los colores
+                    int rojo = color.R;
+                    int verde = color.G;
+                    int azul = color.B;
+
+                    // Para convertirlo a escala de blanco y negro
+                    int bn = (int)(0.299 * rojo + 0.587 * verde + 0.114 * azul);
+
+                    // Creamos el color
+                    Color colorNuevo = Color.FromArgb(bn, bn, bn);
+
+                    // Ponemos ese pixel en la nueva imagen
+                    nuevaCarta.SetPixel(i, j, colorNuevo);
+                }
+            }
+
+            return nuevaCarta;
         }
 
         private void LimpiarManos()

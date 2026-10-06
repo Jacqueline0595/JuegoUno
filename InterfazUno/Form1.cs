@@ -25,14 +25,13 @@ namespace InterfazUno
             this.Text = "Uno";
             Image imgFondo = CargarImagen("r.jpg", new Size(2200, 1440), "Recursos");
             this.WindowState = FormWindowState.Maximized;
-            // this.FormBorderStyle = FormBorderStyle.None;
             this.MinimizeBox = false;
             this.MaximizeBox = false;
             this.CenterToScreen();
             this.BackgroundImage = imgFondo;
 
             this.BackgroundImageLayout = ImageLayout.Stretch;
-            
+
             Button play = new Button();
             play.Text = "Jugar";
             play.Font = new Font("Cabin Bold", 60, FontStyle.Bold);
@@ -46,7 +45,7 @@ namespace InterfazUno
             play.Cursor = Cursors.Hand;
             play.Click += Play_Click;
             this.Controls.Add(play);
-            
+
         }
 
         private Image CargarImagen(string nombreArchivo, Size tamaño, String ruta_d)

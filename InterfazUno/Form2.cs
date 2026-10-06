@@ -44,7 +44,6 @@ namespace InterfazUno
         {
             this.Text = "Uno";
             this.WindowState = FormWindowState.Maximized;
-            // this.FormBorderStyle = FormBorderStyle.None;
             this.MinimizeBox = false;
             this.MaximizeBox = false;
             this.CenterToScreen();
@@ -261,6 +260,7 @@ namespace InterfazUno
                 turno = (repartidor + 1) % 4;
             }
             Resaltar(turno);
+            actualizarColores();
             lblInfo.Text = msg + ". Empieza " + nombres[turno];
         }
 
@@ -305,9 +305,9 @@ namespace InterfazUno
         {
             Label img = new Label();
             Image carta = CargarImagen(nombre, tam, ruta_d);
-            // Parte donde convertimos a blanco y negro dependiendo del turno
-            if(jugador != turno)
-                carta = convertirBlancoNegro(carta);
+            // Tal vez lo quitemos porque no me gusta como se ve al inicio pd. Jacque
+            // if(jugador != turno)
+            //     carta = convertirBlancoNegro(carta);
 
             int sumador = manos[jugador].Count * 80;
             switch (jugador)
@@ -375,6 +375,34 @@ namespace InterfazUno
             return nuevaCarta;
         }
 
+        private void actualizarColores()
+        {
+            // Revisamos todos los jugadores
+            for(int jug = 0; jug < 4; jug++)
+            {
+                // Revisamos cada carta
+                foreach(Label carta in manos[jug])
+                {
+                    // guardamos el nombre de la carta
+                    string nom = carta.Tag.ToString();
+                    // Para volverla a poner a color
+                    Image nuevaImagen = CargarImagen(nom, tam, ruta_d);
+                    // Verificamos el turno para cambiar o no el color
+                    if(jug != turno)
+                        nuevaImagen = convertirBlancoNegro(nuevaImagen);
+
+                    // Rotamos si es necesario
+                    if (jug == 1)
+                        nuevaImagen.RotateFlip(RotateFlipType.Rotate270FlipNone);
+                    else if(jug == 3)
+                        nuevaImagen.RotateFlip(RotateFlipType.Rotate90FlipNone);
+
+                    // Y hacemos el cambio
+                    carta.Image = nuevaImagen;
+                }
+            }
+        }
+
         private void LimpiarManos()
         {
             for (int i = 0; i < 4; i++)
@@ -423,6 +451,7 @@ namespace InterfazUno
         {
             turno = (turno + direccion + 4) % 4;
             Resaltar(turno);
+            actualizarColores();
         }
 
         private void img_MouseEnter(object sender, EventArgs e)

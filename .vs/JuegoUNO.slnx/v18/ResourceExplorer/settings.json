@@ -3,7 +3,12 @@
   "SelectedGroups": [],
   "ExpandedProjects": [],
   "EnableSpellChecker": true,
-  "ColumnOrder": [],
+  "ColumnOrder": [
+    "name",
+    "file-path",
+    "file-name",
+    "type"
+  ],
   "VisibleColumnKeys": [
     "name",
     "neutral-value"

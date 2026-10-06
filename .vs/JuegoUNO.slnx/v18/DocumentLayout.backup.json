@@ -1,10 +1,14 @@
 {
   "Version": 1,
-  "WorkspaceRootPath": "C:\\Users\\aslan\\source\\repos\\JuegoUno\\",
+  "WorkspaceRootPath": "C:\\Users\\jandr\\source\\repos\\JuegoUnoLimpio\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{412394EA-49E2-43F3-9E9D-D4A539430168}|JuegoUNO.csproj|c:\\users\\aslan\\source\\repos\\juegouno\\form1.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form",
-      "RelativeMoniker": "D:0:0:{412394EA-49E2-43F3-9E9D-D4A539430168}|JuegoUNO.csproj|solutionrelative:form1.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form"
+      "AbsoluteMoniker": "D:0:0:{412394EA-49E2-43F3-9E9D-D4A539430168}|JuegoUNO.csproj|c:\\users\\jandr\\source\\repos\\juegounolimpio\\form2.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{412394EA-49E2-43F3-9E9D-D4A539430168}|JuegoUNO.csproj|solutionrelative:form2.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{412394EA-49E2-43F3-9E9D-D4A539430168}|JuegoUNO.csproj|C:\\Users\\jandr\\source\\repos\\JuegoUnoLimpio\\form2.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form",
+      "RelativeMoniker": "D:0:0:{412394EA-49E2-43F3-9E9D-D4A539430168}|JuegoUNO.csproj|solutionrelative:form2.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form"
     }
   ],
   "DocumentGroupContainers": [
@@ -14,19 +18,39 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 0,
+          "SelectedChildIndex": 2,
           "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{1c4feeaa-4718-4aa9-859d-94ce25d182ba}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{e5c86464-96be-4d7c-9a8b-abcb3bbf5f92}"
+            },
             {
               "$type": "Document",
               "DocumentIndex": 0,
-              "Title": "Form1.cs [Design]",
-              "DocumentMoniker": "C:\\Users\\aslan\\source\\repos\\JuegoUno\\Form1.cs",
-              "RelativeDocumentMoniker": "Form1.cs",
-              "ToolTip": "C:\\Users\\aslan\\source\\repos\\JuegoUno\\Form1.cs [Design]",
-              "RelativeToolTip": "Form1.cs [Design]",
+              "Title": "Form2.cs",
+              "DocumentMoniker": "C:\\Users\\jandr\\source\\repos\\JuegoUnoLimpio\\Form2.cs",
+              "RelativeDocumentMoniker": "Form2.cs",
+              "ToolTip": "C:\\Users\\jandr\\source\\repos\\JuegoUnoLimpio\\Form2.cs",
+              "RelativeToolTip": "Form2.cs",
+              "ViewState": "AgIAAP0BAAAAAAAAAAAwwAYCAAAMAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-09-23T01:31:12.012Z",
-              "EditorCaption": " [Design]"
+              "WhenOpened": "2026-10-04T00:46:52.837Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "Form2.cs [Design]",
+              "DocumentMoniker": "C:\\Users\\jandr\\source\\repos\\JuegoUnoLimpio\\Form2.cs",
+              "RelativeDocumentMoniker": "Form2.cs",
+              "ToolTip": "C:\\Users\\jandr\\source\\repos\\JuegoUnoLimpio\\Form2.cs [Design]",
+              "RelativeToolTip": "Form2.cs [Design]",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-10-04T01:55:39.567Z"
             }
           ]
         }

@@ -31,21 +31,23 @@ namespace InterfazUno
         int repartidor;
         int turno;
         int direccion = 1;
-        bool sentidoHorario = true; 
+        bool sentidoHorario = true;
+        int[] puntajes = new int[4]; 
+        const int PUNTOS_META = 200; 
+        Panel marcoTurno;
+
 
         public Form2()
         {
             InitializeComponent();
-            this.Icon = new Icon("Recursos\\logoUno.ico");
         }
 
         private async void Form2_Load(object sender, EventArgs e)
         {
             this.Text = "Uno";
             this.WindowState = FormWindowState.Maximized;
-            // this.FormBorderStyle = FormBorderStyle.None;
+            this.FormBorderStyle = FormBorderStyle.None;
             this.MinimizeBox = false;
-            this.MaximizeBox = false;
             this.CenterToScreen();
             Image fondo = CargarImagen("juego_fondo.jpg", new Size(736, 368), "Recursos");
             this.BackgroundImage = fondo;
@@ -54,6 +56,12 @@ namespace InterfazUno
             CrearNombres();
             CrearBaraja();
             CrearBotonReinicio();
+            
+            marcoTurno = new Panel();
+            marcoTurno.BackColor = Color.FromArgb(80, 255, 215, 0); 
+            marcoTurno.Size = new Size(1, 1); 
+            this.Controls.Add(marcoTurno);
+
             await IniciarJuego();
         }
 
@@ -79,8 +87,17 @@ namespace InterfazUno
             btnReinicio.Click += btnReinicio_Click;
             this.Controls.Add(btnReinicio);
         }
+     
         private async void btnReinicio_Click(object sender, EventArgs e)
         {
+            Array.Clear(puntajes, 0, puntajes.Length);
+
+            for (int i = 0; i < 4; i++)
+            {
+                if (lblNombres[i] != null)
+                    lblNombres[i].Text = nombres[i] + "\n(0 pts)";
+            }
+
             LimpiarManos();
             if (cartaMesa != null)
             {
@@ -89,16 +106,19 @@ namespace InterfazUno
                 cartaMesa = null;
             }
             Resaltar(-1);
+            if (lblBaraja != null) lblBaraja.Enabled = true; 
             await IniciarJuego();
         }
+
+
         private void CrearNombres()
         {
             Point[] pos = { new Point(610, 195), new Point(1295, 100), new Point(610, 855), new Point(45, 100) };
             for (int i = 0; i < 4; i++)
             {
                 lblNombres[i] = new Label();
-                lblNombres[i].Text = nombres[i];
-                lblNombres[i].Size = new Size(160, 34);
+                lblNombres[i].Text = nombres[i] + "\n(" + puntajes[i] + " pts)";
+                lblNombres[i].Size = new Size(160, 50);
                 lblNombres[i].Location = pos[i];
                 lblNombres[i].TextAlign = ContentAlignment.MiddleCenter;
                 lblNombres[i].Font = new Font("Arial", 12, FontStyle.Bold);
@@ -131,6 +151,7 @@ namespace InterfazUno
 
         private void Resaltar(int jugador)
         {
+            
             for (int i = 0; i < 4; i++)
             {
                 if (i == jugador)
@@ -144,7 +165,39 @@ namespace InterfazUno
                     lblNombres[i].ForeColor = Color.White;
                 }
             }
+
+            if (marcoTurno == null) return;
+
+            if (jugador >= 0 && jugador <= 3)
+            {
+                marcoTurno.Visible = true;
+
+                
+                switch (jugador)
+                {
+                    case 0: 
+                        marcoTurno.Bounds = new Rectangle(380, 25, 700, 180);
+                        break;
+                    case 1: 
+                        marcoTurno.Bounds = new Rectangle(1280, 130, 200, 600);
+                        break;
+                    case 2: 
+                        marcoTurno.Bounds = new Rectangle(380, 685, 700, 180);
+                        break;
+                    case 3: 
+                        marcoTurno.Bounds = new Rectangle(30, 130, 200, 600);
+                        break;
+                }
+
+                
+                marcoTurno.SendToBack();
+            }
+            else
+            {
+                marcoTurno.Visible = false; 
+            }
         }
+
 
         private async Task IniciarJuego()
         {
@@ -295,11 +348,14 @@ namespace InterfazUno
                 default: return 0; 
             }
         }
+
         private Label CrearCarta(string nombre, int jugador)
         {
             Label img = new Label();
             Image carta = CargarImagen(nombre, tam, ruta_d);
-            int sumador = manos[jugador].Count * 80;
+
+            int sumador = manos[jugador].Count * 30;
+
             switch (jugador)
             {
                 case 0:
@@ -328,10 +384,16 @@ namespace InterfazUno
             img.MouseEnter += img_MouseEnter;
             img.MouseLeave += img_MouseLeave;
             img.Click += Carta_Click;
+
             this.Controls.Add(img);
+
+            img.BringToFront();
+
             manos[jugador].Add(img);
+            ReorganizarMano(jugador);
             return img;
         }
+
 
         private void LimpiarManos()
         {
@@ -490,7 +552,7 @@ namespace InterfazUno
         }
 
 
-        private void Carta_Click(object sender, EventArgs e)
+        private async void Carta_Click(object sender, EventArgs e)
         {
             Label cartaClickeada = (Label)sender;
             int jugadorCarta = int.Parse(cartaClickeada.Name);
@@ -523,15 +585,72 @@ namespace InterfazUno
                 manos[turno].Remove(cartaClickeada);
                 this.Controls.Remove(cartaClickeada);
                 cartaClickeada.Dispose();
+                ReorganizarMano(turno);
 
-                // 1. Si es carta de Bloqueo
+                ReorganizarMano(turno);
+
+                if (manos[jugadorCarta].Count == 1)
+                {
+                    DialogResult grito = MessageBox.Show("¡Al " + nombres[jugadorCarta] + " le queda una sola carta!\n\n¿Presionaste el botón a tiempo para gritar ¡UNO!?", "Regla del UNO", MessageBoxButtons.YesNo, MessageBoxIcon.Exclamation);
+
+                    if (grito == DialogResult.No)
+                    {
+                        MessageBox.Show("¡No gritaste ¡UNO! a tiempo! Penalización: Recibes 2 cartas de castigo del mazo.", "Penalización", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        CrearCarta(CartaAlAzar(usados), jugadorCarta);
+                        CrearCarta(CartaAlAzar(usados), jugadorCarta);
+                    }
+                    else
+                    {
+                        MessageBox.Show("¡Grito válido! El " + nombres[jugadorCarta] + " ha cantado ¡UNO! con éxito.", "UNO", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                }
+
+            
+
+                if (manos[jugadorCarta].Count == 0)
+                {
+                    int puntosGanados = CalcularPuntosRonda();
+                    puntajes[jugadorCarta] += puntosGanados;
+
+                    for (int i = 0; i < 4; i++)
+                    {
+                        lblNombres[i].Text = nombres[i] + "\n(" + puntajes[i] + " pts)";
+                    }
+
+                    if (puntajes[jugadorCarta] >= PUNTOS_META)
+                    {
+                        MessageBox.Show($"¡FIN DEL TORNEO!\n\nEl {nombres[jugadorCarta]} ha alcanzado {puntajes[jugadorCarta]} puntos y ha GANADO TODO EL JUEGO. 🏆🎉", "¡Ganador Absoluto!", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                        Array.Clear(puntajes, 0, puntajes.Length);
+                        if (lblBaraja != null) lblBaraja.Enabled = false;
+                        Resaltar(-1);
+                        lblInfo.Text = "Torneo Terminado. Ganador: " + nombres[jugadorCarta].ToUpper();
+                    }
+                    else
+                    {
+                        MessageBox.Show($"¡{nombres[jugadorCarta]} ganó la ronda!\nAcumula +{puntosGanados} puntos.\n\nPreparando la siguiente ronda...", "Fin de la Ronda", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                        LimpiarManos();
+                        if (cartaMesa != null)
+                        {
+                            this.Controls.Remove(cartaMesa);
+                            cartaMesa.Dispose();
+                            cartaMesa = null;
+                        }
+                        Resaltar(-1);
+                        await IniciarJuego(); 
+                    }
+                    return;
+                }
+
+                // Si es carta de Bloqueo
                 if (nombreCartaMano.Contains("bloqueo") || nombreCartaMano.Contains("skip"))
                 {
                     MessageBox.Show("¡Carta de Bloqueo! Se salta el turno del siguiente jugador.");
                     SiguienteTurno();
                 }
 
-                // 2. Si es carta de +2
+                // Si es carta de +2
                 else if (nombreCartaMano.Contains("mas_dos") || nombreCartaMano.Contains("mas2") || nombreCartaMano.Contains("draw2"))
                 {
                     int siguienteJugador = (turno + direccion + 4) % 4;
@@ -543,11 +662,36 @@ namespace InterfazUno
 
                     SiguienteTurno();
                 }
-                // 3. Si es carta de Reversa
+                // Si es carta de Reversa
                 else if (nombreCartaMano.Contains("reversa") || nombreCartaMano.Contains("reverse"))
                 {
                     direccion = direccion * -1; 
                     MessageBox.Show("¡Carta Reversa! Se ha cambiado la dirección del juego.");
+                }
+
+                // Si es carta de Cambio de Color
+                else if (nombreCartaMano.Contains("cambiar_color") || nombreCartaMano.Contains("wild"))
+                {
+                    string nuevoColor = MostrarSelectorColor();
+                    cartaMesa.Tag = nuevoColor + "_comodin.png";
+                    MessageBox.Show("El nuevo color en la mesa es: " + nuevoColor.ToUpper(), "UNO", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+
+                // Si es carta de +4
+                else if (nombreCartaMano.Contains("mas cuatro") || nombreCartaMano.Contains("mas_cuatro") || nombreCartaMano.Contains("mas4"))
+                {
+                    string nuevoColor = MostrarSelectorColor();
+                    cartaMesa.Tag = nuevoColor + "_comodin.png";
+
+                    int siguienteJugador = (turno + direccion + 4) % 4;
+
+                    MessageBox.Show("¡Comodín +4! El Jugador " + (siguienteJugador + 1) + " recibe 4 cartas, pierde su turno y el color cambia a " + nuevoColor.ToUpper(), "UNO", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+                    CrearCarta(CartaAlAzar(usados), siguienteJugador);
+                    CrearCarta(CartaAlAzar(usados), siguienteJugador);
+                    CrearCarta(CartaAlAzar(usados), siguienteJugador);
+                    CrearCarta(CartaAlAzar(usados), siguienteJugador);
+                    SiguienteTurno();
                 }
 
                 SiguienteTurno();
@@ -558,6 +702,90 @@ namespace InterfazUno
             }
         }
 
+        private string MostrarSelectorColor()
+        {
+            Form ventanaColor = new Form();
+            ventanaColor.Width = 280;
+            ventanaColor.Height = 160;
+            ventanaColor.Text = "Selecciona un Color";
+            ventanaColor.FormBorderStyle = FormBorderStyle.FixedDialog;
+            ventanaColor.StartPosition = FormStartPosition.CenterScreen;
+            ventanaColor.MaximizeBox = false;
+            ventanaColor.MinimizeBox = false;
+
+            Label etiqueta = new Label() { Left = 20, Top = 20, Text = "Elige el nuevo color para la mesa:", Width = 220 };
+
+            ComboBox listaColores = new ComboBox() { Left = 20, Top = 45, Width = 220, DropDownStyle = ComboBoxStyle.DropDownList };
+            listaColores.Items.AddRange(new string[] { "Rojo", "Verde", "Azul", "Amarillo" });
+            listaColores.SelectedIndex = 0;
+
+            Button botonAceptar = new Button() { Text = "Confirmar", Left = 80, Top = 85, Width = 100, DialogResult = DialogResult.OK };
+            ventanaColor.AcceptButton = botonAceptar;
+
+            ventanaColor.Controls.Add(etiqueta);
+            ventanaColor.Controls.Add(listaColores);
+            ventanaColor.Controls.Add(botonAceptar);
+
+            if (ventanaColor.ShowDialog() == DialogResult.OK)
+            {
+                return listaColores.SelectedItem.ToString().ToLower();
+            }
+
+            return "rojo";
+        }
+
+        private void ReorganizarMano(int jugador)
+        {
+            for (int i = 0; i < manos[jugador].Count; i++)
+            {
+                Label img = manos[jugador][i];
+                int sumador = i * 35; 
+
+                switch (jugador)
+                {
+                    case 0:
+                        img.Location = new Point(400 + sumador, 40);
+                        break;
+                    case 1:
+                        img.Location = new Point(1300, 150 + sumador);
+                        break;
+                    case 2:
+                        img.Location = new Point(400 + sumador, 700);
+                        break;
+                    case 3:
+                        img.Location = new Point(50, 150 + sumador);
+                        break;
+                }
+                img.BringToFront(); 
+            }
+        }
+        private int CalcularPuntosRonda()
+        {
+            int puntosTotales = 0;
+            for (int i = 0; i < 4; i++)
+            {
+                foreach (Label carta in manos[i])
+                {
+                    string nombreCarta = carta.Tag.ToString().ToLower();
+
+                    if (nombreCarta.Contains("mas_cuatro") || nombreCarta.Contains("mas4") || nombreCarta.Contains("cambiar_color") || nombreCarta.Contains("wild"))
+                    {
+                        puntosTotales += 50;
+                    }
+                    else if (nombreCarta.Contains("bloqueo") || nombreCarta.Contains("skip") ||
+                             nombreCarta.Contains("reversa") || nombreCarta.Contains("reverse") ||
+                             nombreCarta.Contains("mas_dos") || nombreCarta.Contains("mas2") || nombreCarta.Contains("draw2"))
+                    {
+                        puntosTotales += 20;
+                    }
+                    else
+                    {
+                        puntosTotales += ValorCarta(nombreCarta);
+                    }
+                }
+            }
+            return puntosTotales;
+        }
 
 
 

@@ -306,8 +306,8 @@ namespace InterfazUno
             Label img = new Label();
             Image carta = CargarImagen(nombre, tam, ruta_d);
             // Tal vez lo quitemos porque no me gusta como se ve al inicio pd. Jacque
-            // if(jugador != turno)
-            //     carta = convertirBlancoNegro(carta);
+            if(jugador != turno)
+                carta = convertirBlancoNegro(carta);
 
             int sumador = manos[jugador].Count * 80;
             switch (jugador)

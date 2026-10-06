@@ -492,14 +492,35 @@ namespace InterfazUno
             }
         }
 
-  
+
         private void Baraja_Click(object sender, EventArgs e)
         {
             string nombreCartaNueva = CartaAlAzar(usados);
-            CrearCarta(nombreCartaNueva, turno);
+            string nombreCartaMesa = cartaMesa.Tag.ToString();
 
+            
+            Label cartaCreada = CrearCarta(nombreCartaNueva, turno);
+
+            
+            if (EsJugadaValida(nombreCartaNueva, nombreCartaMesa))
+            {
+                DialogResult respuesta = MessageBox.Show(
+                    $"¡Robaste una carta jugable ({nombreCartaNueva.Replace(".png", "")})!\n\n¿Quieres bajarla a la mesa?",
+                    "Carta Jugable", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+                if (respuesta == DialogResult.Yes)
+                {
+                    
+                    Carta_Click(cartaCreada, EventArgs.Empty);
+                    return; 
+                }
+            }
+
+            
             SiguienteTurno();
         }
+
+
         private bool EsJugadaValida(string cartaMano, string cartaMesa)
         {
             cartaMano = cartaMano.ToLower();

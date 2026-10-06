@@ -17,6 +17,7 @@ namespace InterfazUno
         public Form1()
         {
             InitializeComponent();
+            this.Icon = new Icon("Recursos\\logoUno.ico");
         }
 
         private void Form1_Load(object sender, EventArgs e)
@@ -24,8 +25,9 @@ namespace InterfazUno
             this.Text = "Uno";
             Image imgFondo = CargarImagen("r.jpg", new Size(2200, 1440), "Recursos");
             this.WindowState = FormWindowState.Maximized;
-            this.FormBorderStyle = FormBorderStyle.None;
+            // this.FormBorderStyle = FormBorderStyle.None;
             this.MinimizeBox = false;
+            this.MaximizeBox = false;
             this.CenterToScreen();
             this.BackgroundImage = imgFondo;
 

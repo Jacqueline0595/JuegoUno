@@ -1,10 +1,18 @@
 {
   "Version": 1,
-  "WorkspaceRootPath": "C:\\Users\\aslan\\source\\repos\\JuegoUno\\InterfazUno\\",
+  "WorkspaceRootPath": "C:\\Users\\jacqu\\source\\repos\\JuegoUno\\InterfazUno\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\aslan\\source\\repos\\JuegoUno\\InterfazUno\\Form2.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\jacqu\\source\\repos\\JuegoUno\\InterfazUno\\Form1.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:Form1.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\jacqu\\source\\repos\\JuegoUno\\InterfazUno\\Form2.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:Form2.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\jacqu\\source\\repos\\JuegoUno\\InterfazUno\\InterfazUno.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:InterfazUno.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}"
     }
   ],
   "DocumentGroupContainers": [
@@ -17,18 +25,44 @@
           "SelectedChildIndex": 1,
           "Children": [
             {
-              "$type": "Bookmark",
-              "Name": "ST:0:0:{1c4feeaa-4718-4aa9-859d-94ce25d182ba}"
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "InterfazUno.csproj",
+              "DocumentMoniker": "C:\\Users\\jacqu\\source\\repos\\JuegoUno\\InterfazUno\\InterfazUno.csproj",
+              "RelativeDocumentMoniker": "InterfazUno.csproj",
+              "ToolTip": "C:\\Users\\jacqu\\source\\repos\\JuegoUno\\InterfazUno\\InterfazUno.csproj",
+              "RelativeToolTip": "InterfazUno.csproj",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAEAAABZAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2026-10-02T14:00:31.164Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
               "DocumentIndex": 0,
+              "Title": "Form1.cs",
+              "DocumentMoniker": "C:\\Users\\jacqu\\source\\repos\\JuegoUno\\InterfazUno\\Form1.cs",
+              "RelativeDocumentMoniker": "Form1.cs",
+              "ToolTip": "C:\\Users\\jacqu\\source\\repos\\JuegoUno\\InterfazUno\\Form1.cs",
+              "RelativeToolTip": "Form1.cs",
+              "ViewState": "AgIAAAgAAAAAAAAAAAAAABMAAAAqAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-10-02T02:51:31.964Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
               "Title": "Form2.cs",
-              "DocumentMoniker": "C:\\Users\\aslan\\source\\repos\\JuegoUno\\InterfazUno\\Form2.cs",
+              "DocumentMoniker": "C:\\Users\\jacqu\\source\\repos\\JuegoUno\\InterfazUno\\Form2.cs",
               "RelativeDocumentMoniker": "Form2.cs",
-              "ToolTip": "C:\\Users\\aslan\\source\\repos\\JuegoUno\\InterfazUno\\Form2.cs",
+              "ToolTip": "C:\\Users\\jacqu\\source\\repos\\JuegoUno\\InterfazUno\\Form2.cs",
               "RelativeToolTip": "Form2.cs",
+<<<<<<< HEAD
               "ViewState": "AgIAAE0BAAAAAAAAAAAAABYAAAAiAAAAAAAAAA==",
+=======
+              "ViewState": "AgIAAA0AAAAAAAAAAAAAACQAAAAsAAAAAAAAAA==",
+>>>>>>> acef7398e85442c4c1756745d3cc3356c923f34f
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2026-10-01T17:28:56.342Z",
               "EditorCaption": ""

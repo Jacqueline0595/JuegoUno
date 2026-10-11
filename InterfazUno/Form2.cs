@@ -748,25 +748,52 @@ namespace InterfazUno
 
         private string ElegirColor()
         {
-            using (var dialogo = new Form
+            using (var dialogo = new Form())
             {
-                Text = "Elige un color",
-                Size = new Size(390, 150),
-                StartPosition = FormStartPosition.CenterParent,
-                FormBorderStyle = FormBorderStyle.FixedDialog,
-                MaximizeBox = false,
-                MinimizeBox = false
-            })
-            {
+                dialogo.AutoScaleDimensions = new SizeF(96F, 96F);
+                dialogo.AutoScaleMode = AutoScaleMode.Dpi;
+                dialogo.Text = "Elige un color";
+                dialogo.Size = new Size(355, 260);
+                dialogo.StartPosition = FormStartPosition.CenterParent;
+                dialogo.FormBorderStyle = FormBorderStyle.FixedDialog;
+                dialogo.MaximizeBox = false;
+                dialogo.MinimizeBox = false;
+                dialogo.ShowInTaskbar = false;
+
+                Label titulo = new Label();
+                titulo.Text = "Elige un color";
+                titulo.ForeColor = Color.Black;
+                titulo.Font = new Font("Arial", 16, FontStyle.Bold);
+                titulo.TextAlign = ContentAlignment.MiddleCenter;
+                titulo.Location = new Point(20, 12);
+                titulo.Size = new Size(300, 36);
+
+                dialogo.Controls.Add(titulo);
+
                 string elegido = null;
+
                 string[] colores = { "rojo", "amarillo", "verde", "azul" };
-                Color[] tonos = { Color.Red, Color.Gold, Color.LightGreen, Color.LightBlue };
+
+                Color[] tonos = {
+                    Color.FromArgb(229, 57, 53),
+                    Color.FromArgb(251, 192, 45),
+                    Color.FromArgb(67, 160, 71),
+                    Color.FromArgb(30, 136, 229)
+                };
+
                 for (int i = 0; i < 4; i++)
                 {
                     string color = colores[i];
-                    var b = new Button { Text = color, BackColor = tonos[i], Location = new Point(10 + i * 90, 30), Size = new Size(85, 40) };
-                    b.Click += (s, e) => { elegido = color; dialogo.DialogResult = DialogResult.OK; };
-                    dialogo.Controls.Add(b);
+                    Button boton = new Button();
+                    boton.BackColor = tonos[i];
+                    boton.FlatStyle = FlatStyle.Flat;
+                    boton.FlatAppearance.BorderSize = 0;
+                    boton.Size = new Size(140, 65);
+                    boton.Location = new Point(20 + (i % 2) * 160, 60 + (i / 2) * 75);
+                    boton.Cursor = Cursors.Hand;
+                    boton.Text = "";
+                    boton.Click += (s, e) => { elegido = color; dialogo.DialogResult = DialogResult.OK; };
+                    dialogo.Controls.Add(boton);
                 }
                 return dialogo.ShowDialog(this) == DialogResult.OK ? elegido : null;
             }

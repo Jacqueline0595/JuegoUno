@@ -46,21 +46,6 @@ namespace InterfazUno
         string ruta_d = Path.Combine(Application.StartupPath, "Cartas") + "\\";
         string texto_elim = Path.Combine(Application.StartupPath, "Cartas") + "\\";
 
-        Size tam = new Size(100, 150);
-        Size tam_2 = new Size(150, 100);
-        Random ran = new Random();
-
-        Label lblBaraja;  
-        Label cartaMesa;   
-        Label lblInfo;
-        Button btnReinicio;
-        int partida = 0;
-        int repartidor;
-        int turno;
-        int direccion = 1;
-        bool sentidoHorario = true; 
-
-
         public Form2()
         {
             InitializeComponent();
@@ -186,9 +171,9 @@ namespace InterfazUno
             this.BackgroundImage = fondo;
             this.BackgroundImageLayout = ImageLayout.Stretch;
             archivos = Directory.GetFiles(ruta_d);
-            CrearNombres();
-            CrearBaraja();
-            CrearBotonReinicio();
+            // CrearNombres();
+            // CrearBaraja();
+            // CrearBotonReinicio();
             await IniciarJuego();
         }
 
@@ -1003,16 +988,6 @@ namespace InterfazUno
             }
             imagen.Dispose();
             return nueva;
-            img.Image = carta;
-            img.ImageAlign = ContentAlignment.TopLeft;
-            img.Tag = nombre;
-            img.Name = jugador.ToString();
-            img.MouseEnter += img_MouseEnter;
-            img.MouseLeave += img_MouseLeave;
-            img.Click += Carta_Click;
-            this.Controls.Add(img);
-            manos[jugador].Add(img);
-            return img;
         }
 
         private void LimpiarManos()
@@ -1089,7 +1064,8 @@ namespace InterfazUno
                     break;
             }
         }
-         private void img_MouseLeave(object sender, EventArgs e)
+
+        private void img_MouseLeave(object sender, EventArgs e)
         {
             Label img = (Label)sender;
             switch (img.Name)
@@ -1227,7 +1203,7 @@ namespace InterfazUno
                 {
                     direccion = direccion * -1; 
                     MessageBox.Show("¡Carta Reversa! Se ha cambiado la dirección del juego.");
-                }
+        }
 
                 SiguienteTurno();
             }

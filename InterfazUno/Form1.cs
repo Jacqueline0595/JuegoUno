@@ -19,9 +19,6 @@ namespace InterfazUno
             InitializeComponent();
 
             this.Icon = new Icon(Path.Combine(Application.StartupPath, "Recursos", "logoUno.ico"));
-
-            this.Icon = new Icon("Recursos\\logoUno.ico");
-
         }
 
         private void Form1_Load(object sender, EventArgs e)

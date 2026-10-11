@@ -17,7 +17,8 @@ namespace InterfazUno
         public Form1()
         {
             InitializeComponent();
-            this.Icon = new Icon("Recursos\\logoUno.ico");
+
+            this.Icon = new Icon(Path.Combine(Application.StartupPath, "Recursos", "logoUno.ico"));
         }
 
         private void Form1_Load(object sender, EventArgs e)
@@ -32,7 +33,7 @@ namespace InterfazUno
             this.BackgroundImage = imgFondo;
 
             this.BackgroundImageLayout = ImageLayout.Stretch;
-            
+
             Button play = new Button();
             play.Text = "Jugar";
             play.Font = new Font("Cabin Bold", 60, FontStyle.Bold);
@@ -46,7 +47,7 @@ namespace InterfazUno
             play.Cursor = Cursors.Hand;
             play.Click += Play_Click;
             this.Controls.Add(play);
-            
+
         }
 
         private Image CargarImagen(string nombreArchivo, Size tamaño, String ruta_d)

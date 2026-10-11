@@ -356,7 +356,7 @@ namespace InterfazUno
             else
                 await MoverAsync("pasar");
         }
-
+       
         private bool EsJugadaValida(Carta mano, Carta mesa)
         {
             if (mano.color == "negro" || mano.color == estado.color_activo)
@@ -366,7 +366,7 @@ namespace InterfazUno
             var partesMano = mano.ArchivoImagen().ToLower().Replace(".png", "").Split('_').Except(colores);
             var partesMesa = mesa.ArchivoImagen().ToLower().Replace(".png", "").Split('_').Except(colores);
             return partesMano.Intersect(partesMesa).Any();
-        }
+        } 
 
         private async Task RevisarFinRondaAsync()
         {
@@ -1029,6 +1029,8 @@ namespace InterfazUno
             }
         }
 
+        // Igual creo que no es la mejor version
+        /*
         private bool Comprueba_usados(List<string> usados, string carta)
         {
             string cero = "cero";
@@ -1058,13 +1060,15 @@ namespace InterfazUno
             {
                 return false;
             }
-        }
+        } */
         
+        // Creo que esta no es la mejor version
+        /*
         private void SiguienteTurno()
         {
             turno = (turno + direccion + 4) % 4;
             Resaltar(turno);
-        }
+        } */
 
         private void img_MouseEnter(object sender, EventArgs e)
         {
@@ -1113,7 +1117,8 @@ namespace InterfazUno
                     break;
             }
         }
-
+        // Lo mismo
+        /* 
         private void Baraja_Click(object sender, EventArgs e)
         {
             string nombreCartaNueva = CartaAlAzar(usados);
@@ -1236,5 +1241,6 @@ namespace InterfazUno
                 MessageBox.Show("Esta carta no coincide en color ni en número.");
             }
         }
+        */
     }
 }

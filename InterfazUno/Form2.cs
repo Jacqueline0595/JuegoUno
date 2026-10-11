@@ -61,8 +61,6 @@ namespace InterfazUno
                 BackgroundImage?.Dispose();
                 Icon?.Dispose();
             };
-
-            this.Icon = new Icon("Recursos\\logoUno.ico");
         }
 
         private async void Form2_Load(object sender, EventArgs e)
@@ -1116,7 +1114,6 @@ namespace InterfazUno
             }
         }
 
-  
         private void Baraja_Click(object sender, EventArgs e)
         {
             string nombreCartaNueva = CartaAlAzar(usados);
@@ -1124,6 +1121,7 @@ namespace InterfazUno
 
             SiguienteTurno();
         }
+
         private bool EsJugadaValida(string cartaMano, string cartaMesa)
         {
             cartaMano = cartaMano.ToLower();
@@ -1171,7 +1169,6 @@ namespace InterfazUno
 
             return false;
         }
-
 
         private void Carta_Click(object sender, EventArgs e)
         {

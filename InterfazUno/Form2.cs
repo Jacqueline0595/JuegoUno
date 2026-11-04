@@ -50,7 +50,7 @@ namespace InterfazUno
         public Form2()
         {
             InitializeComponent();
-
+            
             Icon = new Icon(Path.Combine(Application.StartupPath, "Recursos", "logoUno.ico"));
             FormClosed += (s, e) =>
             {
@@ -75,7 +75,10 @@ namespace InterfazUno
                 BackgroundImage = CargarImagen("juego_fondo.jpg", new Size(736, 368), "Recursos");
                 BackgroundImageLayout = ImageLayout.Stretch;
                 archivos = Directory.GetFiles(Path.Combine(Application.StartupPath, "Cartas"))
-                                    .Select(f => Path.GetFileName(f)).ToArray();
+                    .Select(f => Path.GetFileName(f))
+                    .Where(f => f != "carta_vacia.png" && f != "carta_uno.png")
+                    .ToArray();
+
                 CrearTablero();
                 await ReiniciarAsync();
             }
@@ -169,7 +172,11 @@ namespace InterfazUno
             Image fondo = CargarImagen("juego_fondo.jpg", new Size(736, 368), "Recursos");
             this.BackgroundImage = fondo;
             this.BackgroundImageLayout = ImageLayout.Stretch;
-            archivos = Directory.GetFiles(ruta_d);
+            archivos = Directory.GetFiles(ruta_d)
+                .Select(f => Path.GetFileName(f))
+                .Where(f => f != "carta_vacia.png" && f != "carta_uno.png")
+                .ToArray();
+
             // CrearNombres();
             // CrearBaraja();
             // CrearBotonReinicio();
@@ -493,10 +500,17 @@ namespace InterfazUno
             }
 
             string centro = CartaAlAzar(usados);
-            while (TipoDe(centro) == "mas_cuatro")
+            int intentos = 0;
+            while (TipoDe(centro) == "mas_cuatro" && intentos++ < 50)
+            {
+                usados.Remove(centro);      
+                centro = CartaAlAzar(usados); 
+            }
+            if (TipoDe(centro) == "mas_cuatro")
             {
                 usados.Remove(centro);
-                centro = CartaAlAzar(usados);
+                centro = archivos.First(a => TipoDe(a) != "mas_cuatro" && Comprueba_usados(usados, a) == false);
+                usados.Add(centro);
             }
             cartaMesa.Image?.Dispose();
             cartaMesa.Image = CargarImagen(centro, tam);
@@ -523,8 +537,13 @@ namespace InterfazUno
                     turno = Siguiente(turno);
                     break;
                 case "cambiar_color":
-                    colorActivo = ElegirColor() ?? "rojo";
-                    msg += ". " + nombres[turno] + " cambia el color a " + colorActivo;
+                    msg += ". " + nombres[turno] + " elige el color inicial";
+                    lblInfo.Text = msg;
+                    string colorElegido = ElegirColor();
+                    if (colorElegido == null) 
+                        return; 
+                    colorActivo = colorElegido;
+                    msg = "Repartió " + nombres[repartidor] + ". Color inicial: " + colorActivo;
                     break;
             }
             Resaltar(turno);
@@ -552,9 +571,16 @@ namespace InterfazUno
 
         private bool Comprueba_usados(List<string> lista, string carta)
         {
-            int veces = lista.Count(u => u == carta);
-            int maximo = carta.StartsWith("cero") ? 1 : 2;
-            return veces >= maximo;
+            string tipo = TipoDe(carta);
+            int maximo;
+            if (tipo == "cambiar_color" || tipo == "mas_cuatro")
+                maximo = 4;
+            else if (tipo == "cero")
+                maximo = 1;
+            else
+                maximo = 2;
+
+            return lista.Count(u => u == carta) >= maximo;
         }
 
         private void Reciclar()
@@ -794,6 +820,16 @@ namespace InterfazUno
                     boton.Click += (s, e) => { elegido = color; dialogo.DialogResult = DialogResult.OK; };
                     dialogo.Controls.Add(boton);
                 }
+                dialogo.FormClosing += (s, e) =>
+                {
+                    if (elegido == null && e.CloseReason == CloseReason.UserClosing)
+                    {
+                        e.Cancel = true; // no cerrar
+                        MessageBox.Show(dialogo, "Debes elegir un color para continuar.",
+                            "Color obligatorio", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                };
+                dialogo.ControlBox = false;
                 return dialogo.ShowDialog(this) == DialogResult.OK ? elegido : null;
             }
         }
@@ -936,7 +972,7 @@ namespace InterfazUno
         private void Reorganizar(int jugador)
         {
             int n = manos[jugador].Count;
-            int paso = Math.Min(80, 650 / Math.Max(1, n - 1));
+            int paso = Math.Min(45, 650 / Math.Max(1, n - 1));
             for (int i = 0; i < n; i++)
             {
                 Label l = manos[jugador][i];
@@ -1031,54 +1067,8 @@ namespace InterfazUno
                 mano.Clear();
             }
         }
-
-        // Igual creo que no es la mejor version
+        //Funciones muertas
         /*
-        private bool Comprueba_usados(List<string> usados, string carta)
-        {
-            string cero = "cero";
-            int cont = 0;
-            for (int i = 0; i < usados.Count; i++)
-            {
-                if (carta.StartsWith(cero))
-                {
-                    if (usados[i] == carta)
-                    {
-                        return true;
-                    }
-                }
-                else
-                {
-                    if (usados[i] == carta)
-                    {
-                        cont++;
-                    }
-                }
-            }
-            if (cont >= 2)
-            {
-                return true;
-            }
-            else
-            {
-                return false;
-            }
-        }
-        
-
-         */
-
-        // Creo que esta no es la mejor version
-        /*
-
-        private void SiguienteTurno()
-        {
-            turno = (turno + direccion + 4) % 4;
-            Resaltar(turno);
-        }
-       */
-
-
         private void img_MouseEnter(object sender, EventArgs e)
         {
             Label img = (Label)sender;
@@ -1124,127 +1114,6 @@ namespace InterfazUno
                     img.Width -= 30;
                     img.ImageAlign = ContentAlignment.TopLeft;
                     break;
-            }
-        }
-        /*
-        private void Baraja_Click(object sender, EventArgs e)
-        {
-            string nombreCartaNueva = CartaAlAzar(usados);
-            CrearCarta(nombreCartaNueva, turno);
-
-            SiguienteTurno();
-        }
-
-        private bool EsJugadaValida(string cartaMano, string cartaMesa)
-        {
-            cartaMano = cartaMano.ToLower();
-            cartaMesa = cartaMesa.ToLower();
-
-            if (cartaMano.Contains("cambiar_color") || cartaMano.Contains("mas_cuatro") || cartaMano.Contains("wild"))
-            {
-                return true;
-            }
-
-
-            string[] colores = { "rojo", "verde", "azul", "amarillo" };
-            string colorMano = "";
-            string colorMesa = "";
-
-            foreach (string c in colores)
-            {
-                if (cartaMano.Contains(c)) colorMano = c;
-                if (cartaMesa.Contains(c)) colorMesa = c;
-            }
-
-            if (!string.IsNullOrEmpty(colorMano) && colorMano == colorMesa)
-            {
-                return true;
-            }
-
-            string manoLimpia = cartaMano.Replace(".png", "");
-            string mesaLimpia = cartaMesa.Replace(".png", "");
-
-            string[] partesMano = manoLimpia.Split('_');
-            string[] partesMesa = mesaLimpia.Split('_');
-
-            foreach (string parteM in partesMano)
-            {
-                if (parteM == "rojo" || parteM == "verde" || parteM == "azul" || parteM == "amarillo") continue;
-
-                foreach (string parteMe in partesMesa)
-                {
-                    if (parteM == parteMe)
-                    {
-                        return true;
-                    }
-                }
-            }
-
-
-            return false;
-        }
-
-        private void Carta_Click(object sender, EventArgs e)
-        {
-            Label cartaClickeada = (Label)sender;
-            int jugadorCarta = int.Parse(cartaClickeada.Name);
-
-            if (jugadorCarta != turno)
-            {
-                MessageBox.Show("¡No es tu turno!");
-                return;
-            }
-
-            string nombreCartaMano = cartaClickeada.Tag.ToString();
-            string nombreCartaMesa = cartaMesa.Tag.ToString();
-
-            if (EsJugadaValida(nombreCartaMano, nombreCartaMesa))
-            {
-                Image imagenFinal = cartaClickeada.Image;
-
-                if (jugadorCarta == 1)
-                {
-                    imagenFinal.RotateFlip(RotateFlipType.Rotate90FlipNone);
-                }
-                else if (jugadorCarta == 3)
-                {
-                    imagenFinal.RotateFlip(RotateFlipType.Rotate270FlipNone);
-                }
-
-                cartaMesa.Image = imagenFinal;
-                cartaMesa.Tag = nombreCartaMano;
-
-                manos[turno].Remove(cartaClickeada);
-                this.Controls.Remove(cartaClickeada);
-                cartaClickeada.Dispose();
-
-                if (nombreCartaMano.Contains("bloqueo") || nombreCartaMano.Contains("skip"))
-                {
-                    MessageBox.Show("¡Carta de Bloqueo! Se salta el turno del siguiente jugador.");
-                    SiguienteTurno();
-                }
-                else if (nombreCartaMano.Contains("mas_dos") || nombreCartaMano.Contains("mas2") || nombreCartaMano.Contains("draw2"))
-                {
-                    int siguienteJugador = (turno + direccion + 4) % 4;
-
-                    MessageBox.Show("¡Carta +2! El Jugador " + (siguienteJugador + 1) + " recibe 2 cartas y pierde su turno.");
-
-                    CrearCarta(CartaAlAzar(usados), siguienteJugador);
-                    CrearCarta(CartaAlAzar(usados), siguienteJugador);
-
-                    SiguienteTurno();
-                }
-                else if (nombreCartaMano.Contains("reversa") || nombreCartaMano.Contains("reverse"))
-                {
-                    direccion = direccion * -1;
-                    MessageBox.Show("¡Carta Reversa! Se ha cambiado la dirección del juego.");
-                }
-
-                SiguienteTurno();
-            }
-            else
-            {
-                MessageBox.Show("Esta carta no coincide en color ni en número.");
             }
         }
         */

@@ -4,6 +4,10 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -11,8 +15,8 @@ namespace InterfazUno
 {
     public partial class Form2 : Form
     {
-        readonly bool USAR_API = false;
         const int PUNTOS_META = 200;
+        const int PUERTO_SERVIDOR = 8001;
 
         readonly string[] nombres = { "Jugador 1", "Jugador 2", "Jugador 3", "Jugador 4" };
         readonly string[] coloresUno = { "rojo", "verde", "azul", "amarillo" };
@@ -29,33 +33,39 @@ namespace InterfazUno
         readonly List<Label>[] manos = Enumerable.Range(0, 4).Select(i => new List<Label>()).ToArray();
         readonly int[] puntajes = new int[4];
         readonly Random ran = new Random();
-        Label lblBaraja, cartaMesa, lblInfo;
-        Button btnReinicio, btnPasar, btnActualizar;
 
-        EstadoPartida estado;
-        int ultimaRondaPuntuada;
-        bool ocupado, cerrado;
+        Label lblBaraja, cartaMesa, lblInfo;
+        Button btnReinicio, btnUno, btnConectar;
 
         List<string> usados;
         string[] archivos;
 
         string colorActivo;
         int partida, repartidor, turno, direccion = 1;
-        bool puedeJugar, torneoTerminado;
+        bool puedeJugar, torneoTerminado, cerrado;
 
         string ruta_d = Path.Combine(Application.StartupPath, "Cartas") + "\\";
-        string texto_elim = Path.Combine(Application.StartupPath, "Cartas") + "\\";
 
+        
+        // VARIABLES DE ARQUITECTURA CLIENTE-SERVIDOR (SOCKETS TCP)
+        
+        Socket socketCliente;
+        Thread hiloEscucha;
+        bool modoRed = true;
+        int miJugador = -1; // 0 = Jugador 1, 1 = Jugador 2, 2 = Jugador 3, 3 = Jugador 4
+        int jugadoresConectados = 0;
+        bool preGritoUno = false;
 
         public Form2()
         {
             InitializeComponent();
-            
+
             Icon = new Icon(Path.Combine(Application.StartupPath, "Recursos", "logoUno.ico"));
             FormClosed += (s, e) =>
             {
                 cerrado = true;
                 partida++;
+                CerrarSocket();
                 LimpiarManos();
                 cartaMesa?.Image?.Dispose();
                 lblBaraja?.Image?.Dispose();
@@ -68,19 +78,32 @@ namespace InterfazUno
         {
             try
             {
-                Text = "UNO";
+                Text = "UNO - Cliente en Red";
                 WindowState = FormWindowState.Maximized;
                 AutoScroll = true;
                 AutoScrollMinSize = new Size(1450, 950);
                 BackgroundImage = CargarImagen("juego_fondo.jpg", new Size(736, 368), "Recursos");
                 BackgroundImageLayout = ImageLayout.Stretch;
+
                 archivos = Directory.GetFiles(Path.Combine(Application.StartupPath, "Cartas"))
                     .Select(f => Path.GetFileName(f))
                     .Where(f => f != "carta_vacia.png" && f != "carta_uno.png")
                     .ToArray();
 
                 CrearTablero();
-                await ReiniciarAsync();
+
+                // Solicitar IP del Servidor al iniciar
+                if (ConfigurarYConectarSocket())
+                {
+                    lblInfo.Text = "Conectado al servidor. Esperando asignación de jugador e inicio de partida...";
+                }
+                else
+                {
+                    // Si el usuario eligió probar en Modo Local (1 sola PC)
+                    modoRed = false;
+                    Text = "UNO - Modo Local (1 PC)";
+                    await ReiniciarAsync();
+                }
             }
             catch (Exception ex)
             {
@@ -89,6 +112,579 @@ namespace InterfazUno
             }
         }
 
+        
+        // CONFIGURACIÓN Y CONEXIÓN DEL CLIENTE DE SOCKETS TCP
+        
+        private bool ConfigurarYConectarSocket()
+        {
+            using (Form dlg = new Form())
+            {
+                dlg.Text = "Conexión al Servidor UNO (TCP Puerto 8001)";
+                dlg.Size = new Size(420, 230);
+                dlg.StartPosition = FormStartPosition.CenterScreen;
+                dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
+                dlg.MaximizeBox = false;
+                dlg.MinimizeBox = false;
+
+                Label lblIp = new Label
+                {
+                    Text = "Dirección IP del Servidor (LAN):",
+                    Location = new Point(25, 25),
+                    Size = new Size(350, 25),
+                    Font = new Font("Arial", 11, FontStyle.Bold)
+                };
+
+                TextBox txtIp = new TextBox
+                {
+                    Text = "127.0.0.1",
+                    Location = new Point(25, 55),
+                    Size = new Size(350, 30),
+                    Font = new Font("Arial", 12)
+                };
+
+                Button btnOk = new Button
+                {
+                    Text = "Conectar en Red",
+                    Location = new Point(25, 110),
+                    Size = new Size(170, 45),
+                    BackColor = Color.FromArgb(67, 160, 71),
+                    ForeColor = Color.White,
+                    Font = new Font("Arial", 10, FontStyle.Bold),
+                    Cursor = Cursors.Hand
+                };
+
+                Button btnLocal = new Button
+                {
+                    Text = "Modo Local (1 PC)",
+                    Location = new Point(205, 110),
+                    Size = new Size(170, 45),
+                    BackColor = Color.FromArgb(30, 136, 229),
+                    ForeColor = Color.White,
+                    Font = new Font("Arial", 10, FontStyle.Bold),
+                    Cursor = Cursors.Hand
+                };
+
+                bool conectado = false;
+
+                btnOk.Click += (s, e) =>
+                {
+                    try
+                    {
+                        CerrarSocket();
+                        IPAddress ip = IPAddress.Parse(txtIp.Text.Trim());
+                        IPEndPoint endPoint = new IPEndPoint(ip, PUERTO_SERVIDOR);
+
+                        // Creación del Socket TCP orientado a conexión (Stream)
+                        socketCliente = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                        socketCliente.Connect(endPoint);
+
+                        modoRed = true;
+                        conectado = true;
+
+                        // Iniciamos el hilo receptor en segundo plano (IsBackground = true)
+                        hiloEscucha = new Thread(EscucharServidor)
+                        {
+                            IsBackground = true
+                        };
+                        hiloEscucha.Start();
+
+                        dlg.DialogResult = DialogResult.OK;
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(dlg,
+                            "No se pudo conectar al servidor en " + txtIp.Text + ":" + PUERTO_SERVIDOR +
+                            "\n\nDetalle: " + ex.Message +
+                            "\n\nVerifica que el Servidor esté corriendo y el Firewall permita el puerto 8001.",
+                            "Error de Conexión TCP", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                };
+
+                btnLocal.Click += (s, e) =>
+                {
+                    modoRed = false;
+                    conectado = false;
+                    dlg.DialogResult = DialogResult.Cancel;
+                };
+
+                dlg.Controls.AddRange(new Control[] { lblIp, txtIp, btnOk, btnLocal });
+                dlg.ShowDialog(this);
+                return conectado;
+            }
+        }
+
+        // Serializa un comando de texto plano a bytes UTF-8 con delimitador '\n' y lo envía al servidor
+        private void EnviarTramaServidor(string trama)
+        {
+            if (!modoRed || socketCliente == null || !socketCliente.Connected)
+                return;
+
+            try
+            {
+                byte[] buffer = Encoding.UTF8.GetBytes(trama + "\n");
+                socketCliente.Send(buffer);
+            }
+            catch (Exception ex)
+            {
+                EjecutarEnUI(() =>
+                {
+                    lblInfo.Text = "Error al enviar datos al servidor: " + ex.Message;
+                });
+            }
+        }
+
+        
+        // RECEPCIÓN MULTIHILO Y SEGURIDAD DE HILOS (INVOKE / BEGININVOKE)
+        private void EscucharServidor()
+        {
+            StringBuilder acumulador = new StringBuilder();
+            byte[] buffer = new byte[4096];
+
+            try
+            {
+                while (!cerrado && socketCliente != null && socketCliente.Connected)
+                {
+                    int bytesRecibidos = socketCliente.Receive(buffer);
+                    if (bytesRecibidos == 0)
+                        break;
+
+                    acumulador.Append(Encoding.UTF8.GetString(buffer, 0, bytesRecibidos));
+                    string datos = acumulador.ToString();
+
+                    int posSalto;
+                    while ((posSalto = datos.IndexOf('\n')) >= 0)
+                    {
+                        string trama = datos.Substring(0, posSalto).Trim();
+                        datos = datos.Substring(posSalto + 1);
+
+                        if (!string.IsNullOrEmpty(trama))
+                        {
+                            string copiaTrama = trama;
+                            
+                            EjecutarEnUI(() => ProcesarTramaRed(copiaTrama));
+                        }
+                    }
+
+                    acumulador.Clear();
+                    acumulador.Append(datos);
+                }
+            }
+            catch
+            {
+                if (!cerrado)
+                {
+                    EjecutarEnUI(() =>
+                    {
+                        lblInfo.Text = "Desconectado del servidor. Usa el botón 'IP Servidor' para reconectar.";
+                    });
+                }
+            }
+        }
+
+        
+        private void EjecutarEnUI(Action accion)
+        {
+            if (cerrado || IsDisposed)
+                return;
+
+            if (InvokeRequired)
+                BeginInvoke(accion);
+            else
+                accion();
+        }
+
+        private void CerrarSocket()
+        {
+            try
+            {
+                if (socketCliente != null)
+                {
+                    if (socketCliente.Connected)
+                        socketCliente.Shutdown(SocketShutdown.Both);
+                    socketCliente.Close();
+                    socketCliente = null;
+                }
+            }
+            catch { }
+        }
+
+        
+        // PROCESAMIENTO DEL PROTOCOLO DE SINCRONIZACIÓN EN TIEMPO REAL
+        
+        private async void ProcesarTramaRed(string trama)
+        {
+            if (cerrado)
+                return;
+
+            string[] partes = trama.Split('|');
+            string comando = partes[0];
+
+            switch (comando)
+            {
+                case "ASIGNAR":
+                    // Formato: ASIGNAR|idJugador
+                    miJugador = int.Parse(partes[1]);
+                    Text = $"UNO en Red — Soy {nombres[miJugador]}";
+                    ActualizarNombres();
+                    lblInfo.Text = $"Conectado como {nombres[miJugador]}.\nPulsa 'Nueva partida' cuando estén listos.";
+                    break;
+
+                case "CONECTADOS":
+                    // Formato: CONECTADOS|cantidad
+                    jugadoresConectados = int.Parse(partes[1]);
+                    if (cartaMesa.Tag == null)
+                    {
+                        lblInfo.Text = $"Soy {(miJugador >= 0 ? nombres[miJugador] : "Espectador")} | " +
+                                       $"Jugadores conectados: {jugadoresConectados}/4.\nPulsa 'Nueva partida' para repartir.";
+                    }
+                    break;
+
+                case "ERROR":
+                    MessageBox.Show(this, partes[1], "Aviso del Servidor", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    break;
+
+                case "INICIAR":
+                    // Formato: INICIAR|repartidor|cartaCentro|colorInicial|mano0;mano1;mano2;mano3|cartasExtraMasDos
+                    AplicarInicioRed(
+                        int.Parse(partes[1]),
+                        partes[2],
+                        partes[3],
+                        partes[4],
+                        partes.Length > 5 ? partes[5] : ""
+                    );
+                    break;
+
+                case "JUGAR":
+                    
+                    await AplicarJugadaRedAsync(
+                        int.Parse(partes[1]),
+                        int.Parse(partes[2]),
+                        partes[3],
+                        partes[4],
+                        partes[5],
+                        partes.Length > 6 ? partes[6] : "",
+                        partes.Length > 7 ? partes[7] : ""
+                    );
+                    break;
+
+                case "ROBAR":
+                    
+                    AplicarRoboRed(int.Parse(partes[1]), partes[2]);
+                    break;
+
+                case "PASAR":
+                    
+                    SiguienteTurno();
+                    break;
+
+                case "UNO":
+                    
+                    int jUno = int.Parse(partes[1]);
+                    lblInfo.Text = $"¡{nombres[jUno]} ha gritado ¡UNO! a tiempo!\n" + lblInfo.Text;
+                    break;
+            }
+        }
+
+        // Construye y envía el estado inicial de la ronda al servidor para los 4 clientes
+        private void SolicitarInicioPartidaRed()
+        {
+            List<string> mazoSimulado = new List<string>(reservadas);
+            int rep = ran.Next(0, 4);
+
+            List<string>[] manosIniciales = Enumerable.Range(0, 4).Select(x => new List<string>()).ToArray();
+            int jug = (rep + 1) % 4;
+            for (int i = 0; i < 28; i++)
+            {
+                manosIniciales[jug].Add(CartaAlAzar(mazoSimulado));
+                jug = (jug + 1) % 4;
+            }
+
+            string centro = CartaAlAzar(mazoSimulado);
+            int intentos = 0;
+            while (TipoDe(centro) == "mas_cuatro" && intentos++ < 50)
+            {
+                mazoSimulado.Remove(centro);
+                centro = CartaAlAzar(mazoSimulado);
+            }
+            if (TipoDe(centro) == "mas_cuatro")
+            {
+                mazoSimulado.Remove(centro);
+                centro = archivos.First(a => TipoDe(a) != "mas_cuatro" && !Comprueba_usados(mazoSimulado, a));
+                mazoSimulado.Add(centro);
+            }
+
+            string colorIni = ColorDe(centro);
+            if (TipoDe(centro) == "cambiar_color")
+            {
+                colorIni = ElegirColor() ?? "rojo";
+            }
+
+            // Si la primera carta del centro es un +2, pre-generamos las 2 cartas para que las 4 PCs coincidan
+            string extraMasDos = "";
+            if (TipoDe(centro) == "mas_dos")
+            {
+                extraMasDos = CartaAlAzar(mazoSimulado) + "," + CartaAlAzar(mazoSimulado);
+            }
+
+            string manosSerializadas = string.Join(";", manosIniciales.Select(m => string.Join(",", m)));
+            EnviarTramaServidor($"INICIAR|{rep}|{centro}|{colorIni}|{manosSerializadas}|{extraMasDos}");
+        }
+
+        // Sincroniza el tablero en las 4 computadoras al recibir INICIAR
+        private void AplicarInicioRed(int rep, string centro, string colorIni, string manosStr, string extraMasDos)
+        {
+            partida++;
+            torneoTerminado = false;
+            preGritoUno = false;
+            repartidor = rep;
+            usados = new List<string>(reservadas);
+
+            LimpiarManos();
+
+            string[] gruposManos = manosStr.Split(';');
+            for (int j = 0; j < 4; j++)
+            {
+                string[] cartasJugador = gruposManos[j].Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (string c in cartasJugador)
+                {
+                    usados.Add(c);
+                    CrearCarta(c, j);
+                }
+            }
+
+            usados.Add(centro);
+            cartaMesa.Image?.Dispose();
+            cartaMesa.Image = CargarImagen(centro, tam);
+            cartaMesa.Tag = centro;
+            colorActivo = colorIni;
+
+            direccion = 1;
+            turno = (repartidor + 1) % 4;
+            string msg = "Repartió " + nombres[repartidor];
+
+            switch (TipoDe(centro))
+            {
+                case "reverse":
+                    direccion = -1;
+                    turno = repartidor;
+                    msg += ". Se invierte el sentido";
+                    break;
+                case "bloqueo":
+                    msg += ". " + nombres[turno] + " fue bloqueado";
+                    turno = Siguiente(turno);
+                    break;
+                case "mas_dos":
+                    msg += ". " + nombres[turno] + " toma dos cartas";
+                    foreach (string cExtra in extraMasDos.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        usados.Add(cExtra);
+                        CrearCarta(cExtra, turno);
+                    }
+                    turno = Siguiente(turno);
+                    break;
+                case "cambiar_color":
+                    msg += ". Color inicial: " + colorActivo;
+                    break;
+            }
+
+            puedeJugar = true;
+            Resaltar(turno);
+            RefrescarColores();
+            ActualizarNombres();
+            lblInfo.Text = msg + ". Empieza " + nombres[turno] +
+                           (turno == miJugador ? " (¡ES TU TURNO!)" : "");
+        }
+
+        // Aplica en tiempo real la jugada de cualquier jugador en las 4 pantallas
+        private async Task AplicarJugadaRedAsync(
+            int jugador, int indiceCarta, string nombre, string nuevoColor,
+            string gritoUno, string castigoUno, string cartasEfecto)
+        {
+            if (manos[jugador].Count == 0)
+                return;
+
+            
+            Label carta = (indiceCarta >= 0 && indiceCarta < manos[jugador].Count)
+                ? manos[jugador][indiceCarta]
+                : manos[jugador].FirstOrDefault(l => l.Tag.ToString() == nombre) ?? manos[jugador][0];
+
+            // Cargamos siempre la cara real de la carta al caer en el centro de la mesa
+            Image imagenMesa = CargarImagen(nombre, tam);
+            cartaMesa.Image?.Dispose();
+            cartaMesa.Image = imagenMesa;
+            cartaMesa.Tag = nombre;
+
+            carta.Image?.Dispose();
+            carta.Image = null;
+            manos[jugador].Remove(carta);
+            Controls.Remove(carta);
+            carta.Dispose();
+
+            Reorganizar(jugador);
+            ActualizarNombres();
+
+            string avisoExtra = "";
+
+            // Verificación de regla "¡UNO!" cuando queda 1 sola carta
+            if (manos[jugador].Count == 1)
+            {
+                if (gritoUno == "NO")
+                {
+                    avisoExtra = $"¡{nombres[jugador]} no gritó UNO! Recibe +2 cartas de castigo. ";
+                    foreach (string cCastigo in castigoUno.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        usados.Add(cCastigo);
+                        CrearCarta(cCastigo, jugador);
+                    }
+                }
+                else
+                {
+                    avisoExtra = $"¡{nombres[jugador]} cantó ¡UNO! con éxito! ";
+                }
+            }
+
+            
+            if (manos[jugador].Count == 0)
+            {
+                bool continuarTorneo = RegistrarPuntos(jugador);
+                if (continuarTorneo)
+                {
+                    
+                    if (jugador == miJugador)
+                    {
+                        await Task.Delay(1200);
+                        SolicitarInicioPartidaRed();
+                    }
+                }
+                else
+                {
+                    torneoTerminado = true;
+                }
+                return;
+            }
+
+            colorActivo = nuevoColor;
+            int siguiente = Siguiente(turno);
+            string[] listaEfecto = cartasEfecto.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+
+            switch (TipoDe(nombre))
+            {
+                case "bloqueo":
+                    avisoExtra += $"¡Bloqueo! {nombres[siguiente]} pierde turno.";
+                    turno = siguiente;
+                    break;
+                case "mas_dos":
+                    avisoExtra += $"¡Carta +2! {nombres[siguiente]} recibe 2 cartas y pierde turno.";
+                    foreach (string ce in listaEfecto)
+                    {
+                        usados.Add(ce);
+                        CrearCarta(ce, siguiente);
+                    }
+                    turno = siguiente;
+                    break;
+                case "reverse":
+                    direccion = -direccion;
+                    avisoExtra += "¡Reversa! Cambia el sentido del giro.";
+                    break;
+                case "cambiar_color":
+                    avisoExtra += $"Cambio de color a {colorActivo.ToUpper()}.";
+                    break;
+                case "mas_cuatro":
+                    avisoExtra += $"¡Comodín +4! {nombres[siguiente]} recibe 4 cartas y el color es {colorActivo.ToUpper()}.";
+                    foreach (string ce in listaEfecto)
+                    {
+                        usados.Add(ce);
+                        CrearCarta(ce, siguiente);
+                    }
+                    turno = siguiente;
+                    break;
+            }
+
+            SiguienteTurno(avisoExtra);
+        }
+
+        
+        private void AplicarRoboRed(int jugador, string nombreCartaNueva)
+        {
+            usados.Add(nombreCartaNueva);
+            Label cartaCreada = CrearCarta(nombreCartaNueva, jugador);
+            int indiceCreada = manos[jugador].IndexOf(cartaCreada);
+
+            if (jugador != miJugador)
+            {
+                lblInfo.Text = $"{nombres[jugador]} robó una carta del mazo...";
+                return;
+            }
+
+            
+            string nombreCartaMesa = cartaMesa.Tag.ToString();
+            string visible = nombreCartaNueva.Replace(".png", "");
+
+            if (EsJugadaValida(nombreCartaNueva, nombreCartaMesa))
+            {
+                DialogResult respuesta = MessageBox.Show(this,
+                    "¡Robaste una carta jugable (" + visible + ")!\n\n¿Quieres bajarla a la mesa?\n(Sí = jugarla, No = quedártela y pasar)",
+                    "Carta jugable", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+                if (respuesta == DialogResult.Yes)
+                {
+                    EnviarJugadaAlServidor(indiceCreada, nombreCartaNueva);
+                    return;
+                }
+            }
+            else
+            {
+                MessageBox.Show(this, "Robaste " + visible + ", pero no se puede jugar. Se pasa el turno.", "UNO");
+            }
+
+            EnviarTramaServidor($"PASAR|{miJugador}");
+        }
+
+        
+        private void EnviarJugadaAlServidor(int indiceCarta, string nombre)
+        {
+            string gritoUno = "SI";
+            string castigoUno = "";
+
+            // Si al tirar esta carta me voy a quedar con 1 sola carta
+            if (manos[miJugador].Count == 2)
+            {
+                if (!preGritoUno)
+                {
+                    DialogResult grito = MessageBox.Show(this,
+                        "¡Te queda una sola carta!\n\n¿Presionaste a tiempo para gritar ¡UNO!?",
+                        "Regla del UNO", MessageBoxButtons.YesNo, MessageBoxIcon.Exclamation);
+
+                    if (grito == DialogResult.No)
+                    {
+                        gritoUno = "NO";
+                        List<string> copiaUsados = new List<string>(usados);
+                        castigoUno = CartaAlAzar(copiaUsados) + "," + CartaAlAzar(copiaUsados);
+                    }
+                }
+                preGritoUno = false;
+            }
+
+            string nuevoColor = EsComodin(nombre) ? (ElegirColor() ?? "rojo") : ColorDe(nombre);
+
+            string cartasEfecto = "";
+            string tipo = TipoDe(nombre);
+            if (tipo == "mas_dos" || tipo == "mas_cuatro")
+            {
+                int cant = tipo == "mas_dos" ? 2 : 4;
+                List<string> copiaUsados = new List<string>(usados);
+                List<string> generadas = new List<string>();
+                for (int i = 0; i < cant; i++)
+                    generadas.Add(CartaAlAzar(copiaUsados));
+                cartasEfecto = string.Join(",", generadas);
+            }
+
+            EnviarTramaServidor($"JUGAR|{miJugador}|{indiceCarta}|{nombre}|{nuevoColor}|{gritoUno}|{castigoUno}|{cartasEfecto}");
+        }
+
+        
+        // INTERFAZ GRAFICA, CONTROLES Y LOGICA DEL JUEGO
+        
         private Image CargarImagen(string archivo, Size size, string carpeta = "Cartas")
         {
             string ruta = Path.Combine(Application.StartupPath, carpeta, archivo);
@@ -97,15 +693,16 @@ namespace InterfazUno
             using (Image original = Image.FromFile(ruta)) return new Bitmap(original, size);
         }
 
-        private Button Boton(string texto, int x, EventHandler accion)
+        private Button Boton(string texto, int x, EventHandler accion, Color? colorFondo = null)
         {
             var b = new Button
             {
                 Text = texto,
                 Location = new Point(x, 10),
-                Size = new Size(130, 36),
-                BackColor = Color.Red,
+                Size = new Size(135, 36),
+                BackColor = colorFondo ?? Color.Red,
                 ForeColor = Color.White,
+                Font = new Font("Arial", 9.5f, FontStyle.Bold),
                 Cursor = Cursors.Hand
             };
             b.Click += accion;
@@ -141,7 +738,13 @@ namespace InterfazUno
             };
             Controls.Add(lblInfo);
 
-            lblBaraja = new Label { Location = new Point(580, 370), Size = tam, Image = CargarImagen("carta_uno.png", tam), Cursor = Cursors.Hand };
+            lblBaraja = new Label
+            {
+                Location = new Point(580, 370),
+                Size = tam,
+                Image = CargarImagen("carta_uno.png", tam),
+                Cursor = Cursors.Hand
+            };
             lblBaraja.Click += Baraja_Click;
             Controls.Add(lblBaraja);
 
@@ -149,54 +752,103 @@ namespace InterfazUno
             Controls.Add(cartaMesa);
 
             btnReinicio = Boton("Nueva partida", 10, async (s, e) => await ReiniciarAsync());
-            btnPasar = Boton("Pasar", 150, async (s, e) => await EjecutarAsync(() => MoverAsync("pasar")));
-            btnActualizar = Boton("Actualizar", 290, async (s, e) => await EjecutarAsync(ActualizarAsync));
-            btnPasar.Visible = USAR_API;
-            btnActualizar.Visible = USAR_API;
+            btnUno = Boton("¡Gritar UNO!", 155, BtnUno_Click, Color.FromArgb(251, 140, 0));
+            btnConectar = Boton("IP Servidor", 300, (s, e) => ConfigurarYConectarSocket(), Color.FromArgb(30, 136, 229));
+        }
+
+        private void BtnUno_Click(object sender, EventArgs e)
+        {
+            if (modoRed)
+            {
+                if (miJugador >= 0 && manos[miJugador].Count <= 2)
+                {
+                    preGritoUno = true;
+                    EnviarTramaServidor($"UNO|{miJugador}");
+                }
+                else
+                {
+                    MessageBox.Show(this, "Solo puedes cantar ¡UNO! cuando estás por quedarte con 1 carta.", "UNO");
+                }
+            }
+            else
+            {
+                preGritoUno = true;
+                lblInfo.Text = $"¡{nombres[turno]} ha activado el grito de ¡UNO!!";
+            }
         }
 
         private async Task ReiniciarAsync()
         {
-            if (USAR_API)
+            Array.Clear(puntajes, 0, puntajes.Length);
+
+            if (modoRed)
             {
-                await EjecutarAsync(() => NuevaPartidaAsync(true));
+                if (socketCliente == null || !socketCliente.Connected)
+                {
+                    MessageBox.Show(this, "Primero conéctate al servidor con el botón 'IP Servidor'.", "Sin conexión");
+                    return;
+                }
+                SolicitarInicioPartidaRed();
                 return;
             }
-            Array.Clear(puntajes, 0, puntajes.Length);
-            this.Text = "Uno";
-            this.WindowState = FormWindowState.Maximized;
 
-            this.MinimizeBox = false;
-            this.MaximizeBox = false;
-            this.CenterToScreen();
-            Image fondo = CargarImagen("juego_fondo.jpg", new Size(736, 368), "Recursos");
-            this.BackgroundImage = fondo;
-            this.BackgroundImageLayout = ImageLayout.Stretch;
-            archivos = Directory.GetFiles(ruta_d)
-                .Select(f => Path.GetFileName(f))
-                .Where(f => f != "carta_vacia.png" && f != "carta_uno.png")
-                .ToArray();
-
-            // CrearNombres();
-            // CrearBaraja();
-            // CrearBotonReinicio();
             await IniciarJuego();
         }
-        
+
         private async void Baraja_Click(object sender, EventArgs e)
         {
-            if (USAR_API) await EjecutarAsync(RobarAsync);
-            else await Bloquear(RobarLocalAsync);
+            if (modoRed)
+            {
+                if (!puedeJugar || cartaMesa.Tag == null)
+                    return;
+
+                if (turno != miJugador)
+                {
+                    MessageBox.Show(this, $"¡No es tu turno! Es el turno de {nombres[turno]}.", "Espera tu turno");
+                    return;
+                }
+
+                List<string> copiaUsados = new List<string>(usados);
+                string robada = CartaAlAzar(copiaUsados);
+                EnviarTramaServidor($"ROBAR|{miJugador}|{robada}");
+            }
+            else
+            {
+                await Bloquear(RobarLocalAsync);
+            }
         }
 
         private async void Carta_Click(object sender, EventArgs e)
         {
             Label carta = (Label)sender;
             int jugador = int.Parse(carta.Name);
-            if (USAR_API)
+
+            if (modoRed)
             {
-                if (estado != null && jugador == estado.turno)
-                    await EjecutarAsync(() => MoverAsync("jugar", (Carta)carta.Tag));
+                if (!puedeJugar || cartaMesa.Tag == null)
+                    return;
+
+                if (jugador != miJugador)
+                {
+                    MessageBox.Show(this, "No puedes jugar con las cartas de otro jugador.", "UNO en Red");
+                    return;
+                }
+
+                if (turno != miJugador)
+                {
+                    MessageBox.Show(this, $"¡No es tu turno! Es el turno de {nombres[turno]}.", "Espera tu turno");
+                    return;
+                }
+
+                string nombre = carta.Tag.ToString();
+                if (!EsJugadaValida(nombre, cartaMesa.Tag.ToString()))
+                {
+                    MessageBox.Show(this, "Esta carta no coincide con el color activo (" + colorActivo + ") ni con el símbolo en mesa.");
+                    return;
+                }
+
+                int indice = manos[miJugador].IndexOf(carta);
+                EnviarJugadaAlServidor(indice, nombre);
             }
             else
             {
@@ -204,222 +856,9 @@ namespace InterfazUno
             }
         }
 
-        private async Task EjecutarAsync(Func<Task> accion)
-        {
-            if (ocupado || cerrado)
-                return;
-            ocupado = true;
-            Habilitar();
-            try
-            {
-                await accion();
-                await RevisarFinRondaAsync();
-            }
-            catch (Exception ex)
-            {
-                if (cerrado)
-                    return;
-
-                bool recuperado = false;
-                if (estado != null)
-                {
-                    try
-                    {
-                        await ActualizarAsync();
-                        recuperado = true;
-                    }
-                    catch { }
-                }
-                if (!recuperado)
-                    lblInfo.Text = "Sin conexión confirmada. Revisa API/MySQL y pulsa Actualizar.";
-                MessageBox.Show(this, ex.Message + "\n\nComprueba que la API esté encendida y la migración SQL aplicada.", "No se completó la operación");
-            }
-            finally
-            {
-                ocupado = false;
-                if (!cerrado)
-                    Habilitar();
-            }
-        }
-
-        private void Habilitar()
-        {
-            bool jugando = !ocupado && estado != null && estado.estado == "en_curso";
-            btnReinicio.Enabled = !ocupado;
-            btnActualizar.Enabled = !ocupado && estado != null;
-            btnPasar.Enabled = jugando && estado.robada_id.HasValue;
-            lblBaraja.Enabled = jugando && !estado.robada_id.HasValue;
-            for (int i = 0; i < 4; i++)
-                foreach (Label l in manos[i])
-                    l.Enabled = jugando && i == estado.turno;
-        }
-
-        private async Task NuevaPartidaAsync(bool reiniciarPuntos = false)
-        {
-            if (reiniciarPuntos)
-                Array.Clear(puntajes, 0, puntajes.Length);
-
-            var existentes = (await UnoApi.UsuariosAsync()).ToList();
-            if (cerrado)
-                return;
-            var ids = new List<int>();
-            foreach (string nombre in nombres)
-            {
-                Usuario u = existentes.FirstOrDefault(x => string.Equals(x.nombre, nombre, StringComparison.OrdinalIgnoreCase));
-                if (u == null)
-                    u = await UnoApi.CrearUsuarioAsync(nombre);
-                if (cerrado)
-                    return;
-                ids.Add(u.id);
-            }
-
-            if (estado != null && estado.estado == "en_curso")
-            {
-                estado = await UnoApi.AccionAsync(estado, "abandonar");
-                if (cerrado)
-                    return;
-            }
-            estado = await UnoApi.CrearPartidaAsync(ids.ToArray());
-            if (cerrado)
-                return;
-
-            LimpiarManos();
-            cartaMesa.Image?.Dispose();
-            cartaMesa.Image = null;
-            for (int i = 0; i < 4; i++)
-            {
-                Resaltar(i);
-                lblInfo.Text = nombres[i] + " elige una carta";
-                CrearCarta(estado.sorteo[i], i);
-                await Task.Delay(800);
-                if (cerrado)
-                    return;
-            }
-            Resaltar(estado.repartidor);
-            lblInfo.Text = nombres[estado.repartidor] + " reparte";
-            await Task.Delay(1500);
-            if (cerrado)
-                return;
-
-            LimpiarManos();
-            foreach (Carta c in estado.cartas.Where(c => c.zona == "mano").OrderBy(c => c.orden))
-            {
-                int jugador = Array.FindIndex(estado.jugadores, u => u.id == c.propietario_id);
-                CrearCarta(c, jugador, jugador == estado.turno);
-                await Task.Delay(50);
-                if (cerrado)
-                    return;
-            }
-            Dibujar();
-        }
-
-        private async Task ActualizarAsync()
-        {
-            if (estado == null)
-                return;
-            estado = await UnoApi.EstadoAsync(estado.id);
-            if (!cerrado)
-                Dibujar();
-        }
-
-        private async Task MoverAsync(string accion, Carta carta = null)
-        {
-            if (estado == null || estado.estado != "en_curso")
-                return;
-            string color = null;
-            if (carta != null && carta.color == "negro")
-            {
-                color = ElegirColor();
-                if (color == null)
-                    return;
-            }
-            estado = await UnoApi.AccionAsync(estado, accion, carta?.carta_id, color);
-            if (!cerrado)
-                Dibujar();
-        }
-
-        private async Task RobarAsync()
-        {
-            await MoverAsync("robar");
-            if (cerrado || estado == null || estado.estado != "en_curso" || !estado.robada_id.HasValue)
-                return;
-
-            Carta robada = estado.cartas.First(c => c.carta_id == estado.robada_id.Value);
-            Carta mesa = estado.cartas.Where(c => c.zona == "descarte").OrderBy(c => c.orden).Last();
-            string nombre = robada.ArchivoImagen().Replace(".png", "");
-
-            if (!EsJugadaValida(robada, mesa))
-            {
-                MessageBox.Show(this, "Robaste " + nombre + ", pero no se puede jugar. Se pasa el turno.", "UNO");
-                await MoverAsync("pasar");
-                return;
-            }
-
-            DialogResult respuesta = MessageBox.Show(this,
-                "¡Robaste una carta jugable (" + nombre + ")!\n\n¿Quieres bajarla a la mesa?\n(Sí = jugarla, No = quedártela y pasar)",
-                "Carta jugable", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-
-            if (respuesta == DialogResult.Yes)
-                await MoverAsync("jugar", robada);
-            else
-                await MoverAsync("pasar");
-        }
-
-        private bool EsJugadaValida(Carta mano, Carta mesa)
-        {
-            if (mano.color == "negro" || mano.color == estado.color_activo)
-                return true;
-
-            string[] colores = { "rojo", "verde", "azul", "amarillo", "negro" };
-            var partesMano = mano.ArchivoImagen().ToLower().Replace(".png", "").Split('_').Except(colores);
-            var partesMesa = mesa.ArchivoImagen().ToLower().Replace(".png", "").Split('_').Except(colores);
-            return partesMano.Intersect(partesMesa).Any();
-        }
-
-        private async Task RevisarFinRondaAsync()
-        {
-            if (!USAR_API || cerrado || estado == null || estado.estado != "terminada" || !estado.ganador_id.HasValue)
-                return;
-            if (estado.id == ultimaRondaPuntuada)
-                return;
-            ultimaRondaPuntuada = estado.id;
-
-            int ganador = Array.FindIndex(estado.jugadores, u => u.id == estado.ganador_id.Value);
-            if (ganador < 0)
-                return;
-
-            if (RegistrarPuntos(ganador))
-                await NuevaPartidaAsync();
-        }
-
-        private void Dibujar()
-        {
-            LimpiarManos();
-            for (int i = 0; i < 4; i++)
-            {
-                foreach (Carta c in estado.cartas.Where(c => c.zona == "mano" && c.propietario_id == estado.jugadores[i].id))
-                    CrearCarta(c, i, i == estado.turno);
-            }
-            ActualizarNombres();
-            Resaltar(estado.estado == "en_curso" ? estado.turno : -1);
-
-            Carta superior = estado.cartas.Where(c => c.zona == "descarte").OrderBy(c => c.orden).Last();
-            cartaMesa.Image?.Dispose();
-            cartaMesa.Image = CargarImagen(superior.ArchivoImagen(), tam);
-            cartaMesa.Tag = superior;
-
-            if (estado.estado == "terminada")
-                lblInfo.Text = estado.ganador_id.HasValue
-                    ? "Ganó " + estado.jugadores.First(u => u.id == estado.ganador_id).nombre + ". Resultado guardado."
-                    : "Partida cerrada sin ganador.";
-            else
-                lblInfo.Text = "Partida " + estado.id + " — Turno: " + estado.jugadores[estado.turno].nombre
-                    + "\nColor: " + estado.color_activo + " | Dirección: " + (estado.direccion == 1 ? "horaria" : "antihoraria")
-                    + " | Mazo: " + estado.cartas.Count(c => c.zona == "mazo")
-                    + (estado.robada_id.HasValue ? "\nJuega la carta robada o pulsa Pasar." : "\nPulsa una carta para jugar o el mazo para robar.");
-            Habilitar();
-        }
-
+        
+        // MODO LOCAL DE RESPALDO Y FUNCIONES AUXILIARES DEL TABLERO
+        
         private async Task IniciarJuego()
         {
             int id = ++partida;
@@ -503,8 +942,8 @@ namespace InterfazUno
             int intentos = 0;
             while (TipoDe(centro) == "mas_cuatro" && intentos++ < 50)
             {
-                usados.Remove(centro);      
-                centro = CartaAlAzar(usados); 
+                usados.Remove(centro);
+                centro = CartaAlAzar(usados);
             }
             if (TipoDe(centro) == "mas_cuatro")
             {
@@ -540,8 +979,8 @@ namespace InterfazUno
                     msg += ". " + nombres[turno] + " elige el color inicial";
                     lblInfo.Text = msg;
                     string colorElegido = ElegirColor();
-                    if (colorElegido == null) 
-                        return; 
+                    if (colorElegido == null)
+                        return;
                     colorActivo = colorElegido;
                     msg = "Repartió " + nombres[repartidor] + ". Color inicial: " + colorActivo;
                     break;
@@ -558,6 +997,10 @@ namespace InterfazUno
             {
                 Reciclar();
                 disponibles = Disponibles(lista);
+            }
+            else if (disponibles.Count == 0)
+            {
+                disponibles = archivos.ToList();
             }
             string nombre = disponibles[ran.Next(disponibles.Count)];
             lista.Add(nombre);
@@ -661,14 +1104,11 @@ namespace InterfazUno
 
         private async Task BajarCartaAsync(Label carta, int jugador, string nombre)
         {
-            Image imagen = carta.Image;
-            if (jugador == 1)
-                imagen.RotateFlip(RotateFlipType.Rotate90FlipNone);
-            else if (jugador == 3)
-                imagen.RotateFlip(RotateFlipType.Rotate270FlipNone);
+            Image imagen = CargarImagen(nombre, tam);
             cartaMesa.Image?.Dispose();
             cartaMesa.Image = imagen;
             cartaMesa.Tag = nombre;
+            carta.Image?.Dispose();
             carta.Image = null;
             manos[jugador].Remove(carta);
             Controls.Remove(carta);
@@ -678,17 +1118,21 @@ namespace InterfazUno
 
             if (manos[jugador].Count == 1)
             {
-                DialogResult grito = MessageBox.Show(this, "¡Al " + nombres[jugador] + " le queda una sola carta!\n\n¿Presionaste el botón a tiempo para gritar ¡UNO!?",
+                DialogResult grito = preGritoUno ? DialogResult.Yes : MessageBox.Show(this,
+                    "¡Al " + nombres[jugador] + " le queda una sola carta!\n\n¿Presionaste el botón a tiempo para gritar ¡UNO!?",
                     "Regla del UNO", MessageBoxButtons.YesNo, MessageBoxIcon.Exclamation);
+                preGritoUno = false;
 
                 if (grito == DialogResult.No)
                 {
-                    MessageBox.Show(this, "¡No gritaste ¡UNO! a tiempo! Penalización: Recibes 2 cartas de castigo del mazo.", "Penalización", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(this, "¡No gritaste ¡UNO! a tiempo! Penalización: Recibes 2 cartas de castigo del mazo.",
+                        "Penalización", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     DarCartas(jugador, 2);
                 }
                 else
                 {
-                    MessageBox.Show(this, "¡Grito válido! El " + nombres[jugador] + " ha cantado ¡UNO! con éxito.", "UNO", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(this, "¡Grito válido! El " + nombres[jugador] + " ha cantado ¡UNO! con éxito.",
+                        "UNO", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             }
 
@@ -719,7 +1163,8 @@ namespace InterfazUno
                     MessageBox.Show(this, "¡Carta Reversa! Se ha cambiado la dirección del juego.");
                     break;
                 case "cambiar_color":
-                    MessageBox.Show(this, "El nuevo color en la mesa es: " + colorActivo.ToUpper(), "UNO", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(this, "El nuevo color en la mesa es: " + colorActivo.ToUpper(),
+                        "UNO", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     break;
                 case "mas_cuatro":
                     MessageBox.Show(this, "¡Comodín +4! " + nombres[siguiente] + " recibe 4 cartas, pierde su turno y el color cambia a " + colorActivo.ToUpper(),
@@ -736,11 +1181,15 @@ namespace InterfazUno
             return (jugador + direccion + 4) % 4;
         }
 
-        private void SiguienteTurno()
+        private void SiguienteTurno(string prefijoInfo = "")
         {
             turno = Siguiente(turno);
-            lblInfo.Text = "Turno: " + nombres[turno] + "\nColor: " + colorActivo
-                + " | Dirección: " + (direccion == 1 ? "horaria" : "antihoraria");
+            string lineaExtra = string.IsNullOrEmpty(prefijoInfo) ? "" : prefijoInfo + "\n";
+            string indicadorPropio = (modoRed && turno == miJugador) ? " (¡TU TURNO!)" : "";
+
+            lblInfo.Text = lineaExtra + "Turno: " + nombres[turno] + indicadorPropio +
+                           "\nColor: " + colorActivo.ToUpper() +
+                           " | Dirección: " + (direccion == 1 ? "horaria" : "antihoraria");
             Resaltar(turno);
             RefrescarColores();
         }
@@ -764,11 +1213,11 @@ namespace InterfazUno
             return tipo == "cambiar_color" || tipo == "mas_cuatro";
         }
 
-        private bool EsJugadaValida(string cartaMano, string cartaMesa)
+        private bool EsJugadaValida(string cartaMano, string cartaMesaActual)
         {
             if (EsComodin(cartaMano))
                 return true;
-            return ColorDe(cartaMano) == colorActivo || TipoDe(cartaMano) == TipoDe(cartaMesa);
+            return ColorDe(cartaMano) == colorActivo || TipoDe(cartaMano) == TipoDe(cartaMesaActual);
         }
 
         private string ElegirColor()
@@ -785,21 +1234,21 @@ namespace InterfazUno
                 dialogo.MinimizeBox = false;
                 dialogo.ShowInTaskbar = false;
 
-                Label titulo = new Label();
-                titulo.Text = "Elige un color";
-                titulo.ForeColor = Color.Black;
-                titulo.Font = new Font("Arial", 16, FontStyle.Bold);
-                titulo.TextAlign = ContentAlignment.MiddleCenter;
-                titulo.Location = new Point(20, 12);
-                titulo.Size = new Size(300, 36);
-
+                Label titulo = new Label
+                {
+                    Text = "Elige un color",
+                    ForeColor = Color.Black,
+                    Font = new Font("Arial", 16, FontStyle.Bold),
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    Location = new Point(20, 12),
+                    Size = new Size(300, 36)
+                };
                 dialogo.Controls.Add(titulo);
 
                 string elegido = null;
-
                 string[] colores = { "rojo", "amarillo", "verde", "azul" };
-
-                Color[] tonos = {
+                Color[] tonos =
+                {
                     Color.FromArgb(229, 57, 53),
                     Color.FromArgb(251, 192, 45),
                     Color.FromArgb(67, 160, 71),
@@ -809,22 +1258,25 @@ namespace InterfazUno
                 for (int i = 0; i < 4; i++)
                 {
                     string color = colores[i];
-                    Button boton = new Button();
-                    boton.BackColor = tonos[i];
-                    boton.FlatStyle = FlatStyle.Flat;
+                    Button boton = new Button
+                    {
+                        BackColor = tonos[i],
+                        FlatStyle = FlatStyle.Flat,
+                        Size = new Size(140, 65),
+                        Location = new Point(20 + (i % 2) * 160, 60 + (i / 2) * 75),
+                        Cursor = Cursors.Hand,
+                        Text = ""
+                    };
                     boton.FlatAppearance.BorderSize = 0;
-                    boton.Size = new Size(140, 65);
-                    boton.Location = new Point(20 + (i % 2) * 160, 60 + (i / 2) * 75);
-                    boton.Cursor = Cursors.Hand;
-                    boton.Text = "";
                     boton.Click += (s, e) => { elegido = color; dialogo.DialogResult = DialogResult.OK; };
                     dialogo.Controls.Add(boton);
                 }
+
                 dialogo.FormClosing += (s, e) =>
                 {
                     if (elegido == null && e.CloseReason == CloseReason.UserClosing)
                     {
-                        e.Cancel = true; // no cerrar
+                        e.Cancel = true;
                         MessageBox.Show(dialogo, "Debes elegir un color para continuar.",
                             "Color obligatorio", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     }
@@ -843,7 +1295,7 @@ namespace InterfazUno
             if (puntajes[ganador] >= PUNTOS_META)
             {
                 MessageBox.Show(this, "¡FIN DEL TORNEO!\n\n" + nombres[ganador] + " alcanzó " + puntajes[ganador]
-                    + " puntos y ganó todo el juego ", "¡Ganador absoluto!", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    + " puntos y ganó todo el juego.", "¡Ganador absoluto!", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 Array.Clear(puntajes, 0, puntajes.Length);
                 ActualizarNombres();
                 Resaltar(-1);
@@ -858,8 +1310,6 @@ namespace InterfazUno
 
         private IEnumerable<string> NombresEnMano()
         {
-            if (USAR_API)
-                return estado.cartas.Where(c => c.zona == "mano").Select(c => c.ArchivoImagen());
             return manos.SelectMany(m => m).Select(l => l.Tag.ToString());
         }
 
@@ -887,28 +1337,17 @@ namespace InterfazUno
                 return v;
             switch (primero)
             {
-                case "cero":
-                    return 0;
-                case "uno":
-                    return 1;
-                case "dos":
-                    return 2;
-                case "tres":
-                    return 3;
-                case "cuatro":
-                    return 4;
-                case "cinco":
-                    return 5;
-                case "seis":
-                    return 6;
-                case "siete":
-                    return 7;
-                case "ocho":
-                    return 8;
-                case "nueve":
-                    return 9;
-                default:
-                    return 0;
+                case "cero": return 0;
+                case "uno": return 1;
+                case "dos": return 2;
+                case "tres": return 3;
+                case "cuatro": return 4;
+                case "cinco": return 5;
+                case "seis": return 6;
+                case "siete": return 7;
+                case "ocho": return 8;
+                case "nueve": return 9;
+                default: return 0;
             }
         }
 
@@ -917,7 +1356,10 @@ namespace InterfazUno
             if (cerrado)
                 return;
             for (int i = 0; i < 4; i++)
-                lblNombres[i].Text = nombres[i] + " (" + manos[i].Count + ")\n" + puntajes[i] + " pts";
+            {
+                string marcaYo = (modoRed && i == miJugador) ? " [TÚ]" : "";
+                lblNombres[i].Text = nombres[i] + marcaYo + " (" + manos[i].Count + ")\n" + puntajes[i] + " pts";
+            }
         }
 
         private void Resaltar(int jugador)
@@ -930,9 +1372,13 @@ namespace InterfazUno
             }
         }
 
-        private Label CrearEtiqueta(object tag, string archivo, int jugador, bool aColor)
+        // En Modo Red oculta las cartas de los oponentes mostrando 'carta_uno.png'
+        private Label CrearEtiqueta(object tag, string archivoReal, int jugador, bool aColor)
         {
-            Image imagen = CargarImagen(archivo, tam);
+            bool mostrarFrente = !modoRed || jugador == miJugador;
+            string archivoVisual = mostrarFrente ? archivoReal : "carta_uno.png";
+
+            Image imagen = CargarImagen(archivoVisual, tam);
             if (!aColor)
                 imagen = ConvertirBlancoNegro(imagen);
             if (jugador == 1)
@@ -945,11 +1391,14 @@ namespace InterfazUno
                 Image = imagen,
                 Tag = tag,
                 Name = jugador.ToString(),
-                Cursor = Cursors.Hand,
-                Enabled = !USAR_API
+                Cursor = mostrarFrente ? Cursors.Hand : Cursors.Default
             };
-            l.MouseEnter += (s, e) => Levantar(l, jugador);
-            l.MouseLeave += (s, e) => Reorganizar(jugador);
+
+            if (mostrarFrente)
+            {
+                l.MouseEnter += (s, e) => Levantar(l, jugador);
+                l.MouseLeave += (s, e) => Reorganizar(jugador);
+            }
             l.Click += Carta_Click;
 
             manos[jugador].Add(l);
@@ -957,11 +1406,6 @@ namespace InterfazUno
             Reorganizar(jugador);
             ActualizarNombres();
             return l;
-        }
-
-        private Label CrearCarta(Carta carta, int jugador, bool aColor = true)
-        {
-            return CrearEtiqueta(carta, carta.ArchivoImagen(), jugador, aColor);
         }
 
         private Label CrearCarta(string nombre, int jugador)
@@ -999,7 +1443,6 @@ namespace InterfazUno
                 }
                 l.BringToFront();
             }
-
         }
 
         private void Levantar(Label l, int jugador)
@@ -1017,9 +1460,11 @@ namespace InterfazUno
         {
             for (int j = 0; j < 4; j++)
             {
+                bool mostrarFrente = !modoRed || j == miJugador;
                 foreach (Label l in manos[j])
                 {
-                    Image nueva = CargarImagen(l.Tag.ToString(), tam);
+                    string archivoVisual = mostrarFrente ? l.Tag.ToString() : "carta_uno.png";
+                    Image nueva = CargarImagen(archivoVisual, tam);
                     if (j != turno)
                         nueva = ConvertirBlancoNegro(nueva);
                     if (j == 1)
@@ -1051,7 +1496,6 @@ namespace InterfazUno
             }
             imagen.Dispose();
             return nueva;
-
         }
 
         private void LimpiarManos()
@@ -1067,55 +1511,5 @@ namespace InterfazUno
                 mano.Clear();
             }
         }
-        //Funciones muertas
-        /*
-        private void img_MouseEnter(object sender, EventArgs e)
-        {
-            Label img = (Label)sender;
-            switch (img.Name)
-            {
-                case "0":
-                    img.Height += 30;
-                    img.ImageAlign = ContentAlignment.BottomLeft;
-                    break;
-                case "1":
-                    img.Left -= 30;
-                    img.Width += 30;
-                    break;
-                case "2":
-                    img.Top -= 30;
-                    img.Height += 30;
-                    break;
-                case "3":
-                    img.Width += 30;
-                    img.ImageAlign = ContentAlignment.TopRight;
-                    break;
-            }
-        }
-
-        private void img_MouseLeave(object sender, EventArgs e)
-        {
-            Label img = (Label)sender;
-            switch (img.Name)
-            {
-                case "0":
-                    img.Height -= 30;
-                    img.ImageAlign = ContentAlignment.TopLeft;
-                    break;
-                case "1":
-                    img.Left += 30;
-                    img.Width -= 30;
-                    break;
-                case "2":
-                    img.Top += 30;
-                    img.Height -= 30;
-                    break;
-                case "3":
-                    img.Width -= 30;
-                    img.ImageAlign = ContentAlignment.TopLeft;
-                    break;
-            }
-        }
-        */
     }
 }

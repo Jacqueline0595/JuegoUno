@@ -9,7 +9,7 @@ using System.Threading;
 namespace Servers
 {
     class Program
-    
+    {
         static readonly object bloqueoLista = new object();
 
 

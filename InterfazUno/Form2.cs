@@ -28,6 +28,8 @@ namespace InterfazUno
         {
             ContentAlignment.BottomLeft, ContentAlignment.TopLeft, ContentAlignment.TopLeft, ContentAlignment.TopRight
         };
+        // Posición de la etiqueta de nombre de cada asiento en pantalla: 0 = arriba, 1 = derecha, 2 = abajo, 3 = izquierda
+        readonly Point[] puntosNombres = { new Point(610, 195), new Point(1295, 100), new Point(610, 855), new Point(45, 100) };
 
         readonly Label[] lblNombres = new Label[4];
         readonly List<Label>[] manos = Enumerable.Range(0, 4).Select(i => new List<Label>()).ToArray();
@@ -82,7 +84,7 @@ namespace InterfazUno
                 WindowState = FormWindowState.Maximized;
                 AutoScroll = true;
                 AutoScrollMinSize = new Size(1450, 950);
-                BackgroundImage = CargarImagen("juego_fondo.jpg", new Size(736, 368), "Recursos");
+                BackgroundImage = CargarImagen("juego_fondo.jpg", new Size(1920, 1080), "Recursos");
                 BackgroundImageLayout = ImageLayout.Stretch;
 
                 archivos = Directory.GetFiles(Path.Combine(Application.StartupPath, "Cartas"))
@@ -325,6 +327,7 @@ namespace InterfazUno
                     // Formato: ASIGNAR|idJugador
                     miJugador = int.Parse(partes[1]);
                     Text = $"UNO en Red — Soy {nombres[miJugador]}";
+                    AplicarPerspectiva();
                     ActualizarNombres();
                     lblInfo.Text = $"Conectado como {nombres[miJugador]}.\nPulsa 'Nueva partida' cuando estén listos.";
                     break;
@@ -712,12 +715,11 @@ namespace InterfazUno
 
         private void CrearTablero()
         {
-            Point[] puntos = { new Point(610, 195), new Point(1295, 100), new Point(610, 855), new Point(45, 100) };
             for (int i = 0; i < 4; i++)
             {
                 lblNombres[i] = new Label
                 {
-                    Location = puntos[i],
+                    Location = puntosNombres[Asiento(i)],
                     Size = new Size(160, 50),
                     TextAlign = ContentAlignment.MiddleCenter,
                     Font = new Font("Arial", 12, FontStyle.Bold)
@@ -1381,10 +1383,7 @@ namespace InterfazUno
             Image imagen = CargarImagen(archivoVisual, tam);
             if (!aColor)
                 imagen = ConvertirBlancoNegro(imagen);
-            if (jugador == 1)
-                imagen.RotateFlip(RotateFlipType.Rotate270FlipNone);
-            else if (jugador == 3)
-                imagen.RotateFlip(RotateFlipType.Rotate90FlipNone);
+            RotarSegunAsiento(imagen, jugador);
 
             var l = new Label
             {
@@ -1422,7 +1421,7 @@ namespace InterfazUno
                 Label l = manos[jugador][i];
                 int d = i * paso;
                 l.ImageAlign = ContentAlignment.TopLeft;
-                switch (jugador)
+                switch (Asiento(jugador))
                 {
                     case 0:
                         l.Size = tam;
@@ -1448,12 +1447,43 @@ namespace InterfazUno
         private void Levantar(Label l, int jugador)
         {
             Reorganizar(jugador);
-            Size cambio = levante[jugador];
+            int asiento = Asiento(jugador);
+            Size cambio = levante[asiento];
             if (cambio.Width < 0 || cambio.Height < 0)
                 l.Location += cambio;
             l.Size += new Size(Math.Abs(cambio.Width), Math.Abs(cambio.Height));
-            l.ImageAlign = alineaLevante[jugador];
+            l.ImageAlign = alineaLevante[asiento];
             l.BringToFront();
+        }
+
+        // ROTACIÓN DE PERSPECTIVA: en Modo Red cada cliente se ve a sí mismo abajo.
+        // Convierte el número de jugador del servidor (0-3) en el asiento de pantalla
+        // (0 = arriba, 1 = derecha, 2 = abajo, 3 = izquierda) conservando el orden de turnos.
+        private int Asiento(int jugador)
+        {
+            if (!modoRed || miJugador < 0)
+                return jugador;
+            return (jugador - miJugador + 6) % 4;
+        }
+
+        private void RotarSegunAsiento(Image imagen, int jugador)
+        {
+            int asiento = Asiento(jugador);
+            if (asiento == 1)
+                imagen.RotateFlip(RotateFlipType.Rotate270FlipNone);
+            else if (asiento == 3)
+                imagen.RotateFlip(RotateFlipType.Rotate90FlipNone);
+        }
+
+        // Recoloca nombres y manos cuando el servidor asigna (o cambia) el número de jugador
+        private void AplicarPerspectiva()
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                lblNombres[i].Location = puntosNombres[Asiento(i)];
+                Reorganizar(i);
+            }
+            RefrescarColores();
         }
 
         private void RefrescarColores()
@@ -1467,10 +1497,7 @@ namespace InterfazUno
                     Image nueva = CargarImagen(archivoVisual, tam);
                     if (j != turno)
                         nueva = ConvertirBlancoNegro(nueva);
-                    if (j == 1)
-                        nueva.RotateFlip(RotateFlipType.Rotate270FlipNone);
-                    else if (j == 3)
-                        nueva.RotateFlip(RotateFlipType.Rotate90FlipNone);
+                    RotarSegunAsiento(nueva, j);
                     l.Image?.Dispose();
                     l.Image = nueva;
                 }

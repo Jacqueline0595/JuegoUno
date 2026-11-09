@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using UnoDatos;
 
 namespace InterfazUno
 {
@@ -37,7 +38,9 @@ namespace InterfazUno
         readonly Random ran = new Random();
 
         Label lblBaraja, cartaMesa, lblInfo;
-        Button btnReinicio, btnUno, btnConectar;
+        Button btnReinicio, btnUno, btnConectar, btnHistorial;
+        FormHistorial ventanaHistorial;
+        TaskCompletionSource<string> esperaHistorial;
 
         List<string> usados;
         string[] archivos;
@@ -57,6 +60,7 @@ namespace InterfazUno
         int miJugador = -1; // 0 = Jugador 1, 1 = Jugador 2, 2 = Jugador 3, 3 = Jugador 4
         int jugadoresConectados = 0;
         bool preGritoUno = false;
+        string servidorActual; // IP:puerto del servidor, para mostrarlo en el historial
 
         public Form2()
         {
@@ -182,6 +186,7 @@ namespace InterfazUno
 
                         modoRed = true;
                         conectado = true;
+                        servidorActual = endPoint.ToString();
 
                         // Iniciamos el hilo receptor en segundo plano (IsBackground = true)
                         hiloEscucha = new Thread(EscucharServidor)
@@ -278,6 +283,7 @@ namespace InterfazUno
                     EjecutarEnUI(() =>
                     {
                         lblInfo.Text = "Desconectado del servidor. Usa el botón 'IP Servidor' para reconectar.";
+                        esperaHistorial?.TrySetException(new IOException("Se perdió la conexión con el servidor."));
                     });
                 }
             }
@@ -381,11 +387,88 @@ namespace InterfazUno
                     break;
 
                 case "UNO":
-                    
+
                     int jUno = int.Parse(partes[1]);
                     lblInfo.Text = $"¡{nombres[jUno]} ha gritado ¡UNO! a tiempo!\n" + lblInfo.Text;
                     break;
+
+                case TramaHistorial.Comando:
+                    // Respuesta del servidor a nuestra petición de historial (solo nos llega a nosotros)
+                    esperaHistorial?.TrySetResult(trama);
+                    break;
             }
+        }
+
+
+        // HISTORIAL DE PARTIDAS GANADAS
+        // En red se le pide al servidor (él consulta su base de datos MySQL);
+        // en modo local se lee la base de datos directamente.
+
+        private void BtnHistorial_Click(object sender, EventArgs e)
+        {
+            if (ventanaHistorial == null || ventanaHistorial.IsDisposed)
+            {
+                ventanaHistorial = new FormHistorial(CargarHistorialAsync, OrigenHistorial,
+                    () => modoRed && miJugador >= 0 ? nombres[miJugador] : null);
+                ventanaHistorial.Show(this); // carga los datos al mostrarse
+            }
+            else
+            {
+                ventanaHistorial.Activate();
+                _ = ventanaHistorial.RecargarAsync();
+            }
+        }
+
+        private Task<HistorialDatos> CargarHistorialAsync()
+        {
+            if (modoRed)
+                return PedirHistorialAlServidorAsync();
+            return Task.Run(() => HistorialDb.Consultar());
+        }
+
+        private string OrigenHistorial()
+        {
+            return modoRed
+                ? "Base de datos del servidor " + (servidorActual ?? "(sin conexión)")
+                : "Base de datos local: " + HistorialDb.Descripcion;
+        }
+
+        // Envía HISTORIAL y espera la respuesta que llega por el hilo de escucha (ProcesarTramaRed)
+        private async Task<HistorialDatos> PedirHistorialAlServidorAsync()
+        {
+            if (socketCliente == null || !socketCliente.Connected)
+                throw new InvalidOperationException("No hay conexión con el servidor. Usa el botón 'IP Servidor' para conectarte.");
+
+            var espera = new TaskCompletionSource<string>();
+            esperaHistorial = espera;
+            EnviarTramaServidor(TramaHistorial.Comando);
+
+            Task primera = await Task.WhenAny(espera.Task, Task.Delay(10000));
+            if (esperaHistorial == espera)
+                esperaHistorial = null;
+            if (primera != espera.Task)
+                throw new TimeoutException("El servidor no respondió a tiempo.");
+
+            return TramaHistorial.LeerRespuesta(await espera.Task);
+        }
+
+        // Guarda la ronda ganada en la base de datos. En red las 4 PCs ven el final de la ronda,
+        // así que solo la PC del ganador avisa al servidor; en modo local se guarda directo.
+        private void GuardarEnHistorial(int ganador)
+        {
+            if (modoRed)
+            {
+                if (ganador == miJugador)
+                    EnviarTramaServidor(TramaHistorial.NuevoResultado(ganador, nombres));
+                return;
+            }
+
+            string[] jugadores = (string[])nombres.Clone();
+            Task.Run(() => HistorialDb.RegistrarPartida(jugadores, ganador)).ContinueWith(t =>
+            {
+                string error = t.Exception.GetBaseException().Message;
+                EjecutarEnUI(() => lblInfo.Text += "\n(No se guardó en el historial: " + error + ")");
+            }, TaskContinuationOptions.OnlyOnFaulted);
         }
 
         // Construye y envía el estado inicial de la ronda al servidor para los 4 clientes
@@ -756,6 +839,7 @@ namespace InterfazUno
             btnReinicio = Boton("Nueva partida", 10, async (s, e) => await ReiniciarAsync());
             btnUno = Boton("¡Gritar UNO!", 155, BtnUno_Click, Color.FromArgb(251, 140, 0));
             btnConectar = Boton("IP Servidor", 300, (s, e) => ConfigurarYConectarSocket(), Color.FromArgb(30, 136, 229));
+            btnHistorial = Boton("Historial", 445, BtnHistorial_Click, Color.FromArgb(67, 160, 71));
         }
 
         private void BtnUno_Click(object sender, EventArgs e)
@@ -1293,6 +1377,7 @@ namespace InterfazUno
             int puntos = CalcularPuntosRonda();
             puntajes[ganador] += puntos;
             ActualizarNombres();
+            GuardarEnHistorial(ganador);
 
             if (puntajes[ganador] >= PUNTOS_META)
             {

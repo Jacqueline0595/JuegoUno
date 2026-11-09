@@ -5,6 +5,8 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
+using UnoDatos;
 
 namespace Servers
 {
@@ -30,7 +32,9 @@ namespace Servers
                 Console.WriteLine($"Servidor UNO TCP corriendo en el puerto {puerto}...");
                 Console.WriteLine("Endpoint local: " + myList.LocalEndpoint);
                 Console.WriteLine("Esperando la conexión de los 4 jugadores...");
+                Console.WriteLine("Base de datos del historial: " + HistorialDb.Descripcion);
                 Console.WriteLine("====================================================");
+                ProbarBaseDeDatos();
 
                 while (true)
                 {
@@ -119,6 +123,18 @@ namespace Servers
                         {
                             Console.WriteLine($"[TRAMA J{idJugador + 1}] {trama}");
 
+                            // Las tramas del historial las atiende el servidor y no se reenvían
+                            if (trama == TramaHistorial.Comando)
+                            {
+                                EnviarHistorial(socketCliente, idJugador);
+                                continue;
+                            }
+                            if (trama.StartsWith(TramaHistorial.ComandoResultado + "|"))
+                            {
+                                GuardarResultado(trama);
+                                continue;
+                            }
+
                             if (trama.StartsWith("INICIAR|"))
                             {
                                 ultimoEstadoInicio = trama;
@@ -154,15 +170,81 @@ namespace Servers
             }
         }
 
-        
+        // HISTORIAL DE PARTIDAS (MySQL)
+        // Las consultas corren en otro hilo para no frenar la lectura de las tramas del juego.
+
+        static void ProbarBaseDeDatos()
+        {
+            Task.Run(() =>
+            {
+                try
+                {
+                    HistorialDb.ProbarConexion();
+                    Console.WriteLine("[HISTORIAL] Conexión con MySQL correcta.");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("[HISTORIAL] Aviso: " + ex.Message);
+                    Console.WriteLine("            El juego funciona, pero el historial no estará disponible.");
+                }
+            });
+        }
+
+        // Responde solo al cliente que pidió el historial
+        static void EnviarHistorial(Socket destino, int idJugador)
+        {
+            Task.Run(() =>
+            {
+                string respuesta;
+                try
+                {
+                    respuesta = TramaHistorial.Respuesta(HistorialDb.Consultar());
+                    Console.WriteLine($"[HISTORIAL] Enviado al Jugador {idJugador + 1}.");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("[HISTORIAL] Error al consultar MySQL: " + ex.Message);
+                    respuesta = TramaHistorial.Error("No se pudo leer la base de datos del servidor: " + ex.Message);
+                }
+                EnviarDirecto(destino, respuesta);
+            });
+        }
+
+        // La PC del ganador avisa al terminar una ronda: RESULTADO|ganador|nombre1,nombre2,...
+        static void GuardarResultado(string trama)
+        {
+            int ganador;
+            string[] jugadores;
+            if (!TramaHistorial.LeerResultado(trama, out ganador, out jugadores))
+            {
+                Console.WriteLine("[HISTORIAL] Trama RESULTADO inválida, se ignora.");
+                return;
+            }
+
+            Task.Run(() =>
+            {
+                try
+                {
+                    int partidaId = HistorialDb.RegistrarPartida(jugadores, ganador);
+                    Console.WriteLine($"[HISTORIAL] Partida #{partidaId} guardada. Ganó {jugadores[ganador]}.");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("[HISTORIAL] No se pudo guardar la partida: " + ex.Message);
+                }
+            });
+        }
+
+        // Usa el mismo candado que Broadcast para que dos hilos no escriban a la vez en el mismo socket
         static void EnviarDirecto(Socket destino, string trama)
         {
             try
             {
-                if (destino != null && destino.Connected)
+                byte[] datos = Encoding.UTF8.GetBytes(trama + "\n");
+                lock (bloqueoLista)
                 {
-                    byte[] datos = Encoding.UTF8.GetBytes(trama + "\n");
-                    destino.Send(datos);
+                    if (destino != null && destino.Connected)
+                        destino.Send(datos);
                 }
             }
             catch { }

@@ -32,43 +32,24 @@ namespace Servers
                 Console.WriteLine($"Servidor UNO TCP corriendo en el puerto {puerto}...");
                 Console.WriteLine("Endpoint local: " + myList.LocalEndpoint);
                 Console.WriteLine("Esperando la conexión de los 4 jugadores...");
-                Console.WriteLine("Base de datos del historial: " + HistorialDb.Descripcion);
                 Console.WriteLine("====================================================");
+
+                // si mysql falla el servidor sigue funcionando, nomas no hay historial
                 ProbarBaseDeDatos();
 
                 while (true)
                 {
                     Socket clienteSocket = myList.AcceptSocket();
-                    int idAsignado = -1;
-
-                    lock (bloqueoLista)
+                    try
                     {
-                        // Buscamos el primer lugar libre entre 0 y 3 
-                        for (int i = 0; i < 4; i++)
-                        {
-                            if (!clientesPorId.ContainsKey(i) || !clientesPorId[i].Connected)
-                            {
-                                idAsignado = i;
-                                clientesPorId[i] = clienteSocket;
-                                break;
-                            }
-                        }
+                        AceptarJugador(clienteSocket);
                     }
-
-                    if (idAsignado == -1)
+                    catch (Exception ex)
                     {
-                        // Si ya están los 4 lugaresx ocupados, rechazamos la conexión extra
-                        EnviarDirecto(clienteSocket, "ERROR|Sala llena (4 jugadores máximo).");
-                        clienteSocket.Close();
-                        continue;
+                        // si un cliente falla que no tumbe a los demas
+                        Console.WriteLine("[AVISO] No se pudo atender una conexión nueva: " + ex.Message);
+                        try { clienteSocket.Close(); } catch { }
                     }
-
-                    Console.WriteLine($"\n[CONECTADO] Jugador {idAsignado + 1} (ID {idAsignado}) desde: {clienteSocket.RemoteEndPoint}");
-
-                    int idActual = idAsignado;
-                    Thread hiloJugador = new Thread(() => AtenderJugador(clienteSocket, idActual));
-                    hiloJugador.IsBackground = true;
-                    hiloJugador.Start();
                 }
             }
             catch (Exception e)
@@ -77,6 +58,40 @@ namespace Servers
             }
 
             Console.ReadLine();
+        }
+
+        static void AceptarJugador(Socket clienteSocket)
+        {
+            int idAsignado = -1;
+
+            lock (bloqueoLista)
+            {
+                // Buscamos el primer lugar libre entre 0 y 3
+                for (int i = 0; i < 4; i++)
+                {
+                    if (!clientesPorId.ContainsKey(i) || !clientesPorId[i].Connected)
+                    {
+                        idAsignado = i;
+                        clientesPorId[i] = clienteSocket;
+                        break;
+                    }
+                }
+            }
+
+            if (idAsignado == -1)
+            {
+                // Si ya están los 4 lugares ocupados, rechazamos la conexión extra
+                EnviarDirecto(clienteSocket, "ERROR|Sala llena (4 jugadores máximo).");
+                clienteSocket.Close();
+                return;
+            }
+
+            Console.WriteLine($"\n[CONECTADO] Jugador {idAsignado + 1} (ID {idAsignado}) desde: {clienteSocket.RemoteEndPoint}");
+
+            int idActual = idAsignado;
+            Thread hiloJugador = new Thread(() => AtenderJugador(clienteSocket, idActual));
+            hiloJugador.IsBackground = true;
+            hiloJugador.Start();
         }
 
         static void AtenderJugador(Socket socketCliente, int idJugador)
@@ -179,12 +194,13 @@ namespace Servers
             {
                 try
                 {
+                    Console.WriteLine("[HISTORIAL] Base de datos: " + HistorialDb.Descripcion);
                     HistorialDb.ProbarConexion();
                     Console.WriteLine("[HISTORIAL] Conexión con MySQL correcta.");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine("[HISTORIAL] Aviso: " + ex.Message);
+                    Console.WriteLine("[HISTORIAL] Aviso: " + MensajeErrorBd(ex));
                     Console.WriteLine("            El juego funciona, pero el historial no estará disponible.");
                 }
             });
@@ -203,8 +219,9 @@ namespace Servers
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine("[HISTORIAL] Error al consultar MySQL: " + ex.Message);
-                    respuesta = TramaHistorial.Error("No se pudo leer la base de datos del servidor: " + ex.Message);
+                    string mensaje = MensajeErrorBd(ex);
+                    Console.WriteLine("[HISTORIAL] Error al consultar MySQL: " + mensaje);
+                    respuesta = TramaHistorial.Error("No se pudo leer la base de datos del servidor: " + mensaje);
                 }
                 EnviarDirecto(destino, respuesta);
             });
@@ -230,9 +247,19 @@ namespace Servers
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine("[HISTORIAL] No se pudo guardar la partida: " + ex.Message);
+                    Console.WriteLine("[HISTORIAL] No se pudo guardar la partida: " + MensajeErrorBd(ex));
                 }
             });
+        }
+
+        // si falta MySql.Data el error sale raro, mejor decir que hacer
+        static string MensajeErrorBd(Exception ex)
+        {
+            Exception causa = ex.GetBaseException();
+            if (causa is System.IO.FileNotFoundException || causa is System.IO.FileLoadException)
+                return "Falta la librería MySql.Data. Compila ServidorUno en Visual Studio " +
+                       "(o con 'msbuild /t:Restore;Build') para que se descarguen los paquetes NuGet.";
+            return ex.Message;
         }
 
         // Usa el mismo candado que Broadcast para que dos hilos no escriban a la vez en el mismo socket

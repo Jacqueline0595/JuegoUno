@@ -29,7 +29,7 @@ namespace InterfazUno
         {
             ContentAlignment.BottomLeft, ContentAlignment.TopLeft, ContentAlignment.TopLeft, ContentAlignment.TopRight
         };
-        // Posición de la etiqueta de nombre de cada asiento en pantalla: 0 = arriba, 1 = derecha, 2 = abajo, 3 = izquierda
+        // donde va el nombre de cada asiento: 0 arriba, 1 derecha, 2 abajo, 3 izquierda
         readonly Point[] puntosNombres = { new Point(610, 195), new Point(1295, 100), new Point(610, 855), new Point(45, 100) };
 
         readonly Label[] lblNombres = new Label[4];
@@ -246,12 +246,13 @@ namespace InterfazUno
         {
             StringBuilder acumulador = new StringBuilder();
             byte[] buffer = new byte[4096];
+            Socket miSocket = socketCliente; // por si te reconectas, que no se cruce con el nuevo
 
             try
             {
-                while (!cerrado && socketCliente != null && socketCliente.Connected)
+                while (!cerrado && miSocket != null && miSocket.Connected)
                 {
-                    int bytesRecibidos = socketCliente.Receive(buffer);
+                    int bytesRecibidos = miSocket.Receive(buffer);
                     if (bytesRecibidos == 0)
                         break;
 
@@ -278,14 +279,19 @@ namespace InterfazUno
             }
             catch
             {
-                if (!cerrado)
+                // se avisa abajo
+            }
+
+            // el servidor se cerro o fallo la conexion, avisamos
+            if (!cerrado)
+            {
+                EjecutarEnUI(() =>
                 {
-                    EjecutarEnUI(() =>
-                    {
-                        lblInfo.Text = "Desconectado del servidor. Usa el botón 'IP Servidor' para reconectar.";
-                        esperaHistorial?.TrySetException(new IOException("Se perdió la conexión con el servidor."));
-                    });
-                }
+                    if (miSocket != socketCliente)
+                        return; // ya hay otra conexion, este aviso es de la vieja
+                    lblInfo.Text = "Desconectado del servidor. Usa el botón 'IP Servidor' para reconectar.";
+                    esperaHistorial?.TrySetException(new IOException("Se perdió la conexión con el servidor."));
+                });
             }
         }
 
@@ -1104,7 +1110,7 @@ namespace InterfazUno
             int maximo;
             if (tipo == "cambiar_color" || tipo == "mas_cuatro")
                 maximo = 4;
-            else if (tipo == "cero")
+            else if (tipo == "0" || tipo == "cero") // los ceros se llaman 0_color.png
                 maximo = 1;
             else
                 maximo = 2;
@@ -1290,7 +1296,11 @@ namespace InterfazUno
         {
             string[] quitar = { "rojo", "verde", "azul", "amarillo", "negro", "comodin" };
             string[] partes = Path.GetFileNameWithoutExtension(nombre).ToLower().Split('_');
-            return string.Join("_", partes.Except(quitar));
+            string tipo = string.Join("_", partes.Except(quitar));
+            // la imagen del +4 se llama mas_cuatro_color, sin esto no se podia tirar
+            if (tipo == "mas_cuatro_color")
+                tipo = "mas_cuatro";
+            return tipo;
         }
 
         private bool EsComodin(string nombre)
@@ -1541,9 +1551,7 @@ namespace InterfazUno
             l.BringToFront();
         }
 
-        // ROTACIÓN DE PERSPECTIVA: en Modo Red cada cliente se ve a sí mismo abajo.
-        // Convierte el número de jugador del servidor (0-3) en el asiento de pantalla
-        // (0 = arriba, 1 = derecha, 2 = abajo, 3 = izquierda) conservando el orden de turnos.
+        // en red cada quien se ve abajo, esto pasa el numero del servidor al asiento de la pantalla
         private int Asiento(int jugador)
         {
             if (!modoRed || miJugador < 0)
@@ -1560,7 +1568,7 @@ namespace InterfazUno
                 imagen.RotateFlip(RotateFlipType.Rotate90FlipNone);
         }
 
-        // Recoloca nombres y manos cuando el servidor asigna (o cambia) el número de jugador
+        // acomoda nombres y manos cuando el servidor nos da numero
         private void AplicarPerspectiva()
         {
             for (int i = 0; i < 4; i++)
@@ -1580,7 +1588,9 @@ namespace InterfazUno
                 {
                     string archivoVisual = mostrarFrente ? l.Tag.ToString() : "carta_uno.png";
                     Image nueva = CargarImagen(archivoVisual, tam);
-                    if (j != turno)
+                    // en red tu mano siempre a color, las demas en gris si no es su turno
+                    bool esMiMano = modoRed && j == miJugador;
+                    if (j != turno && !esMiMano)
                         nueva = ConvertirBlancoNegro(nueva);
                     RotarSegunAsiento(nueva, j);
                     l.Image?.Dispose();
